@@ -20,7 +20,13 @@ def request(url, method, header, params):
 	try:
 		response = requests.post(f'http://{url}/dx', data=json.dumps(data), headers=header, timeout=15)
 	except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-		print('Cannot connect:', e)
+		if method == 'pos.open':
+			action = 'open master position'
+		elif method == 'pos.close':
+			action = 'close master position'
+		elif method == 'acc.pos':
+			action = 'list investor positions'
+		print('Cannot connect for {action}:', e)
 		error_info(url=url, result='WARNING')
 	except Exception as e:
 		error = e
@@ -47,9 +53,9 @@ def open_MA_pos(url, header, ma_login, symbol, deal_type, lot, comment=''):
 	return ma_pos
 
 
-def close_MA_pos(url, header, ma_login, pos_id):
+def close_MA_pos(url, header, ma_login, ma_pos_id):
 	result = False
-	params = {"login": ma_login, 'pos_id': pos_id}
+	params = {"login": ma_login, 'pos_id': ma_pos_id}
 	ma_pos_close, error = request(url=url, method='pos.close', header=header, params=params)
 	if error:
 		print("Error closing MA position:", error)
@@ -80,7 +86,7 @@ def find_IA_pose(url, header, ma_login, ia_login, ma_pos_id):
 					found = True
 					break
 			if not found:
-				print('Error: no copied position found in investor')
+				print('Error: no copied position found on investor')
 				error_info(url=url, ma_login=ma_login, ia_login=ia_login, result='FAILED', ma_pos_id=ma_pos_id)
 	return found
 
@@ -112,7 +118,7 @@ def main(args):
 			ia_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id)		# Bool
 
 			#3 Close MA Pos
-			ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, pos_id=ma_pos_id)		# Bool
+			ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id)		# Bool
 
 
 if __name__ == "__main__":
