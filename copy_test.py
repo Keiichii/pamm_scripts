@@ -1,7 +1,7 @@
 import argparse
 import requests
 import json
-from time import sleep, time
+from time import sleep
 
 
 symbol = 'XRPUSD'
@@ -69,7 +69,6 @@ def close_MA_pos(url, header, ma_login, ma_pos_id):
 
 
 def find_IA_pose(url, header, ma_login, ia_login, ma_pos_id):
-	'Return , error'
 	found = False
 	params = {"login": ia_login}
 	ia_poses, error = request(url=url, method='acc.pos', header=header, params=params)
@@ -101,14 +100,11 @@ def error_info(url=None, ma_login=None, ia_login=None, result=None, ma_pos_id=No
 
 
 def main(args):
-	t0 = time()
 	header = {'ManagerPass': args.ManagerPass}
 	url = args.Server
 	ma_login = args.MA_login
 	#1 Open pos
 	ma_pos = open_MA_pos(url=url, header=header, ma_login=ma_login, symbol=symbol, deal_type=deal_type, lot=lot, comment=comment)
-	t1 = time()
-	print('----- open master pos time:', t1-t0)
 	if ma_pos:
 		ma_pos_id = ma_pos.get('order')
 		if not ma_pos_id:
@@ -116,23 +112,13 @@ def main(args):
 			error_info(url=url, ma_login=ma_login, result='FAILED')
 		else:
 			#Waiting for coping positions
-			t2 = time()
-			w = int(args.Wait)
-			x = 0
-			while x < w:
-				#2 Find investor's Poses linked to MA
-				ia_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id)		# Bool
-				print('----- check ia poses time', time()-t2, '/', time()-t0)
-				if ia_pose:
-					break
-				sleep(2)
-				x += 2
+			sleep(int(args.Wait))
+			
+			#2 Find investor's Poses linked to MA
+			ia_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id)		# Bool
 
 			#3 Close MA Pos
-			t3 = time()
 			ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id)		# Bool
-			print('----- closing pose time', time()-t3, '/', time()-t0)
-
 
 
 if __name__ == "__main__":
