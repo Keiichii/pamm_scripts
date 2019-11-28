@@ -3,13 +3,6 @@ import requests
 from time import strftime, gmtime
 
 
-parser = argparse.ArgumentParser(description='Request PAMM service errors')
-parser.add_argument('IP', help='15.32.163.117')
-parser.add_argument('Port', help='Daxel port')
-
-args = parser.parse_args()
-
-
 def error_info(msg=None, url=None, result=None):
     if msg: print(msg)
     if url: print('Service port:', url.split(':')[-1].split('/')[0])
@@ -55,6 +48,11 @@ def request_monitor(ip, port):
                 error_info(msg=msg)
 
 
-
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Request PAMM service errors')
+    parser.add_argument('IP', help='Server IP')
+    parser.add_argument('Port', help='Daxel port')
+
+    args = parser.parse_args()
+
     request_monitor(args.IP, args.Port)
