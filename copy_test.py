@@ -4,9 +4,7 @@ import json
 from time import sleep
 
 
-symbol = 'XRPUSD'
 deal_type = '0'
-lot = '1'
 comment = 'Zabbix test deal'
 base_req = {"jsonrpc":"2.0", "id":"null"}
 check_result = None
@@ -104,7 +102,7 @@ def main(args):
 	url = args.Server
 	ma_login = args.MA_login
 	#1 Open pos
-	ma_pos = open_MA_pos(url=url, header=header, ma_login=ma_login, symbol=symbol, deal_type=deal_type, lot=lot, comment=comment)
+	ma_pos = open_MA_pos(url=url, header=header, ma_login=ma_login, symbol=args.Symbol, deal_type=deal_type, lot=args.Lot, comment=comment)
 	if ma_pos:
 		ma_pos_id = ma_pos.get('order')
 		if not ma_pos_id:
@@ -128,6 +126,8 @@ if __name__ == "__main__":
 	parser.add_argument('MA_login', help='MT Master login')
 	parser.add_argument('IA_login', help='MT Investor login')
 	parser.add_argument('Wait', help='Wait for copy deal, sec')
+	parser.add_argument('Symbol', help='Symbol, default is XRPUSD')
+	parser.add_argument('Lot', help='Lot size, default is 1 for XRPUSD')
 
 	args = parser.parse_args()
 
