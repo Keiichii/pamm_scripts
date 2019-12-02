@@ -198,12 +198,14 @@ def find_port(string):
     try:
         if 'json_checklogin' in string:
             port = findall(r':(\d+)/', string)[0]
-        elif 'web.page.get' in string:
-            port = findall(r',(\d+)]', string)[0]
         elif 'copy_test' in string:
             port = findall(r':(\d+),', string)[0]
         elif 'service.info' in string:
             service_name = findall(r'\[(\w+),', string)[0]
+        elif 'error_monitor' ib string:
+            port = findall(r'\d{5}', string)[0]
+        elif 'web.page.get' in string:
+            port = findall(r',(\d+)]', string)[0]
     except IndexError as e:
         logging.error(f'Exception parsing args: {e}')
     return port, service_name
