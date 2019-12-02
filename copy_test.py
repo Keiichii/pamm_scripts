@@ -24,7 +24,7 @@ def request(url, method, header, params):
 			action = 'close master position'
 		elif method == 'acc.pos':
 			action = 'list investor positions'
-		print('Cannot connect for {action}:', e)
+		print(f'Cannot connect for {action}:', e)
 		error_info(url=url, result='WARNING')
 	except Exception as e:
 		error = e
