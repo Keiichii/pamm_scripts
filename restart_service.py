@@ -202,7 +202,7 @@ def find_port(string):
             port = findall(r':(\d+),', string)[0]
         elif 'service.info' in string:
             service_name = findall(r'\[(\w+),', string)[0]
-        elif 'error_monitor' ib string:
+        elif 'error_monitor' in string:
             port = findall(r'\d{5}', string)[0]
         elif 'web.page.get' in string:
             port = findall(r',(\d+)]', string)[0]
