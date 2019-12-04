@@ -22,18 +22,18 @@ logger.setLevel(logging.INFO)
 # Create handlers
 c_handler = logging.StreamHandler()     # to console
 c_handler.setLevel(logging.INFO)
-# f_handler = handlers.RotatingFileHandler('update_pamm.txt', maxBytes=1000000, backupCount=2)
-# f_handler.setLevel(logging.INFO)
+f_handler = handlers.RotatingFileHandler('c:\\scripts\\update_pamm_log.txt', maxBytes=1000000, backupCount=2)
+f_handler.setLevel(logging.INFO)
 
 # Create formatters and add it to handlers
 c_format = logging.Formatter('\n%(asctime)s - %(levelname)s - %(message)s')
 c_handler.setFormatter(c_format)
-# f_format = logging.Formatter('\n%(asctime)s - %(levelname)s - %(message)s')
-# f_handler.setFormatter(f_format)
+f_format = logging.Formatter('\n%(asctime)s - %(levelname)s - %(message)s')
+f_handler.setFormatter(f_format)
 
 # Add handlers to the logger
 logger.addHandler(c_handler)
-# logger.addHandler(f_handler)
+logger.addHandler(f_handler)
 
 service_mask = ['dapli', 'daxel']
 
@@ -227,7 +227,7 @@ def request(url, header=None, body=None, timeout=None, json=True):
         logger.exception("Request general Exception:")
     else:
         status = response.status_code
-        if response.ok:
+        if not response.ok:
             logger.error(f"Request status code: {status}, url= {url}")
         else:
             if json:
@@ -347,7 +347,7 @@ if __name__ == "__main__":
     
     #1 find local services 
     local_services = find_services()    #Dict s_name = {}
-    logger.info(f'Found these services: {local_services}')
+    logger.info(f'Found these services: {local_services.keys()}')
     
     #2 Get available version
     new_versions = get_versions()
