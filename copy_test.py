@@ -1,7 +1,7 @@
 import argparse
 import requests
 import json
-from time import sleep
+from time import sleep, time
 
 
 deal_type = '0'
@@ -16,7 +16,7 @@ def request(url, method, header, params):
 	data['method'] = method
 	data['params'] = params
 	try:
-		response = requests.post(f'http://{url}/dx', data=json.dumps(data), headers=header, timeout=15)
+		response = requests.post(f'http://{url}/dx', data=json.dumps(data), headers=header, timeout=30)
 	except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
 		if method == 'pos.open':
 			action = 'open master position'
@@ -66,16 +66,16 @@ def close_MA_pos(url, header, ma_login, ma_pos_id):
 	return result
 
 
-def find_IA_pose(url, header, ma_login, ia_login, ma_pos_id):
+def find_IA_pose(url, header, ma_login, ia_login, ma_pos_id, log=True):
 	found = False
 	params = {"login": ia_login}
 	ia_poses, error = request(url=url, method='acc.pos', header=header, params=params)
-	if error:
+	if error and log:
 		print("Error getting Investor positions:", error)
 		error_info(url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING')
 	elif ia_poses:
 		list_of_poses = ia_poses.get('poss')
-		if not list_of_poses:
+		if not list_of_poses and log:
 			print('List of investor posses is empty')
 			error_info(url=url, ma_login=ma_login, ia_login=ia_login, result='FAILED')
 		else:
@@ -83,7 +83,7 @@ def find_IA_pose(url, header, ma_login, ia_login, ma_pos_id):
 				if pos.get('ma').get('pos_id') == ma_pos_id:
 					found = True
 					break
-			if not found:
+			if not found and log:
 				print('Error: no copied position found on investor')
 				error_info(url=url, ma_login=ma_login, ia_login=ia_login, result='FAILED', ma_pos_id=ma_pos_id)
 	return found
@@ -110,14 +110,17 @@ def main(args):
 			error_info(url=url, ma_login=ma_login, result='FAILED')
 		else:
 			#Waiting for coping positions
-			sleep(int(args.Wait))
-			
-			#2 Find investor's Poses linked to MA
-			ia_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id)		# Bool
+			for _ in range(int(args.Wait) // 2):
+				sleep(2)
+				#2 Find investor's Poses linked to MA
+				ia_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, log=False)		# Bool
+				if ia_pose:
+					break
+			else:
+				ia_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id)		# Bool
 
 			#3 Close MA Pos
 			ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id)		# Bool
-
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Tests PAMM services with copying deals')
