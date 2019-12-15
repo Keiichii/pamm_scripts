@@ -280,7 +280,7 @@ def to_update(local_services, new_versions):
             if float(cur_ver[2:]) < float(new_ver[2:]) or int(cur_ver[0]) < int(new_ver[0]):
                 logger.info(f"cur {cur_ver} < {new_ver} new")
                 dic_to_update[svc] = new_versions[short_name]
-                logger.info(f"To list for update added: {svc} - {short_name}")
+                logger.info(f"To update added: {svc} - {short_name}")
             else:
                 logger.info(f"cur {cur_ver} = {new_ver} new")
         else:
@@ -297,8 +297,8 @@ def update(svc, local_services, new_version):
         data = response.text.split('\r\n')
         filtered_data = data[data.index('[files]')+1:data.index('[label]')]
         files_list = [line[line.rfind('\\')+1:] for line in filtered_data]
-        # create a temporary directory using the context manager
         try:
+            # create a temporary directory
             tmpdir = tempfile.TemporaryDirectory()
             tmpdirname = tmpdir.name
             file_download_error = False
@@ -333,8 +333,17 @@ def update(svc, local_services, new_version):
                     #4.3 replace files
                     for file in os.listdir(tmpdirname):
                         logger.info(f'moving {file}...')
-                        os.replace(os.path.join(tmpdirname, file), os.path.join(app_path, file))
-                        # os.replace(os.path.join(tmpdirname, file), os.path.join('c:\\scripts\\temp', file))
+                        for i in range(3):
+                            try:
+                                os.replace(os.path.join(tmpdirname, file), os.path.join(app_path, file))
+                                # os.replace(os.path.join(tmpdirname, file), os.path.join('c:\\scripts\\temp', file))
+                            except PermissionError as e:
+                                logger.exception(f'Replacing {file} Exception:')
+                                logger.warning(f'try #{i} to stop service {svc}')
+                            except Exception as e:
+                                logger.exception(f'Replacing {file} general Exception:')
+                            else:
+                                break
                     #4.3 - start service
                     start(svc, handle)
                     logger.info(f'======================================= \n {svc} update finished.\n')
@@ -352,11 +361,11 @@ if __name__ == "__main__":
     #2 Get available version
     new_versions = get_versions()
     logger.info("Got new versions:")
-    logger.info({f'    {i} = {v["ver"]}\n' for i, v in new_versions.items()})
+    logger.info({f'    {i} = {v["ver"]}' for i, v in new_versions.items()})
 
     #3 compare versions and prepare list to update process
     dic_to_update = to_update(local_services, new_versions)
-    logger.info(f"Going to update: {dic_to_update}")
+    logger.info(f"Going to update: {dic_to_update.keys()}")
     
     #4 Update app
     for svc, new_version in dic_to_update.items():
