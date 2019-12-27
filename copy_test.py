@@ -4,6 +4,8 @@ import json
 from time import sleep
 
 
+#Repo changes
+
 deal_type = '0'
 comment = 'Zabbix test deal'
 base_req = {"jsonrpc":"2.0", "id":"null"}
