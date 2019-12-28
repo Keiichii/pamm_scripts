@@ -1,13 +1,16 @@
 import argparse
 import requests
 import json
-from time import sleep, time
+from time import sleep, time, ctime
 
 
 deal_type = '0'
 comment = 'Zabbix test deal'
 base_req = {"jsonrpc":"2.0", "id":"null"}
 check_result = None
+
+ma_pos_data = {}
+ia_pos_data = {}
 
 
 def request(url, method, header, params):
@@ -67,6 +70,8 @@ def close_MA_pos(url, header, ma_login, ma_pos_id):
 
 
 def find_IA_pose(url, header, ma_login, ia_login, ma_pos_id, log=True, test_close=False, master=False):
+	global ma_pos_data, ia_pos_data
+	print('===== Inside find_IA_pose =====')
 	found = False
 	params = {"login": ia_login}
 	ia_poses, error = request(url=url, method='acc.pos', header=header, params=params)
@@ -82,15 +87,23 @@ def find_IA_pose(url, header, ma_login, ia_login, ma_pos_id, log=True, test_clos
 			else:
 				for pos in list_of_poses:
 					if not master:
-						if pos.get('ma').get('pos_id') == ma_pos_id:
+						ia_pos = pos.get('ma').get('pos_id')
+						if ia_pos == ma_pos_id:
 							found = True
+							ia_pos_data = pos
+							print('if ia_pose found => Compare time between poses...')
 							break
 					else:
+						print('>>> Master flag enabled...')
 						cur_pos = pos.get('pos_id')
 						if cur_pos == ma_pos_id:
+							print('cur_pos == ma_pos_id, FOUND')
 							found = True
+							ma_pos_data = pos
 						else:
+							print('cur_pos != ma_pos_id, closing this position:', cur_pos)
 							ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=cur_pos)		# Bool
+							print('ma_pos_close:', ma_pos_close)
 				if not found and log:
 					print('Error: no copied position found on investor')
 					error_info(url=url, ma_login=ma_login, ia_login=ia_login, result='FAILED', ma_pos_id=ma_pos_id)
@@ -108,6 +121,8 @@ def find_IA_pose(url, header, ma_login, ia_login, ma_pos_id, log=True, test_clos
 				if not found and log:
 					print('No copied position found on investor')
 					error_info(url=url, ma_login=ma_login, ia_login=ia_login, result='PASSED', ma_pos_id=ma_pos_id)
+	print('===== END of find_IA_pose =====')
+	print('\n')
 	return found
 
 
@@ -135,57 +150,150 @@ def read_pos():
 		return int(position_number) if position_number else False
 
 
+def compare_time(ma_pose, ia_pose, flag, url=None, header=None):
+	if flag == 'open':
+		print('ma_pose', ma_pose)
+		print('ia_pose', ia_pose)
+		ma_open_pos_time = ma_pose.get('time')
+		ia_open_pos_time = ia_pose.get("time_create")
+		diff = ia_open_pos_time - ma_open_pos_time
+		if diff > 3:
+			print('Time difference between MA pos and IA positions OPEN times, sec:', diff)
+			error_info(url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING')
+	else:
+		ma_pos_id = ma_pose.get('pos_id')
+		print('Searching for:', ma_pos_id)
+		ia_pos_id = ia_pose.get('pos_id')
+		ma_id = ma_pose.get('login')
+		ia_id = ia_pose.get('login')
+		def found_pos(login, pos_id):
+			found = False
+			offset = 0
+			limit = 1
+			print('\nstarting while')
+			while not found:
+				params = {"login": login, "close_time": True, "limit": limit, 'offset': offset}
+				ma_data, error = request(url=url, method='acc.pos', header=header, params=params)
+				ma_closed_poses = ma_data.get('poss')
+				if ma_closed_poses:
+					for pos in ma_closed_poses:
+						if pos.get('pos_id') == pos_id:
+							pos_close_time = pos.get('time_close')
+							found = True
+							print(pos)
+							break
+					offset += 101
+					print('offset', offset)
+					limit = 101
+				else:
+					break
+			return pos_close_time
+		ma_pos_close_time = found_pos(ma_id, ma_pos_id)
+		ia_pos_close_time = found_pos(ia_id, ia_pos_id)
+		diff = ia_pos_close_time - ma_pos_close_time
+		if diff > 3:
+			print('Time difference between MA pos and IA positions CLOSE times, sec:', diff)
+			error_info(url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING')
+
+
 def main(args):
+	global ma_pos_data, ia_pos_data
 	header = {'ManagerPass': args.ManagerPass}
 	url = args.Server
 	ma_login = args.MA_login
 	# A - if no opened position
+	print('Read MA pose from file')
 	ma_pos_id = read_pos()
+	print('MA pose from file:', ma_pos_id)
+	print('\n')
 	if not ma_pos_id:
+		print('if not ma_pos_id => No MA pos in file, opening MA pos')
 		#1 Open pos
 		ma_pos = open_MA_pos(url=url, header=header, ma_login=ma_login, symbol=args.Symbol, deal_type=deal_type, lot=args.Lot, comment=comment)
+		print('MA pos:', ma_pos)
+		ma_pos_data = ma_pos
+		print('\n')
 		if ma_pos:
+			print('if ma_pos => ma_pose opened successfully')
 			ma_pos_id = ma_pos.get('order')
+			print('Get order # from ma_pos:', ma_pos_id)
+			print('write it to the file...')
 			write_pos(ma_pos_id)
+			print('\n')
 			if not ma_pos_id:
+				print('if not ma_pos_id => ')
 				print('Cannot get Master position ID')
 				error_info(url=url, ma_login=ma_login, result='FAILED')
 			else:
+				print('if ma_pos_id => checking investor for copy...')
 				#Waiting for coping positions
+				print('\n')
 				for _ in range(int(args.Wait) // 2):
+					print('waiting 2 sec...')
 					sleep(2)
 					#2 Find investor's Poses linked to MA
+					print('checking investor...')
 					ia_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, log=False)		# Bool
+					print('find_IA_pose returned ia_pose:', ia_pose)
 					if ia_pose:
+						print('ia_pose found in IA!')
+						compare_time(ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='open')
 						break
 				else:
+					print('ia_pose NOT found in IA! Checking last time with error logging...')
 					ia_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id)		# Bool
+					print('find_IA_pose returned ia_pose:', ia_pose)
+					print('\n')
 					if not ia_pose:
+						print('if not ia_pose => IA pos NOT found, closing MA pos...')
 						ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id)		# Bool
+						print('ma_pos_close:', ma_pos_close)
+						print('Clearing file with pos ID')
 						write_pos('')
+					else:
+						compare_time(ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='open')
 	else: # if ma_opened position exist
+		print('if ma_pos_id => MA pos in file. Checking it on MA and IA...')
 		ma_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=ma_login, ma_pos_id=ma_pos_id, master=True)		# Bool
-		# close all other posses if any:
+		print('ma_pose found:', ma_pose)
 		ia_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id)		# Bool
+		print('ia_pose found:', ia_pose)
+		print('\n')
+		# close all posses if any:
 		if ma_pose and ia_pose:
+			print('if ma_pose and ia_pose => close MA pos, and check it closed on IA...')
 			#3 Close MA Pos
 			ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id)		# Bool
+			print('MA pos close:', ma_pos_close)
+			print('Clearing file with pos ID')
 			write_pos('')
+			print('\n')
 			if ma_pos_close:
+				print('if ma_pos_close => Find this pos on IA')
+				print('\n')
 				for _ in range(int(args.Wait) // 2):
+					print('waiting 2 sec...')
 					sleep(2)
 					ia_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, test_close=True, log=False)		# Bool
+					print('find_IA_pose returned ia_pose:', ia_pose)
 					if not ia_pose:
+						print('ia_pose NOT found in IA! - it was closed, OK!')
 						break
 				else:
+					print('ia_pose still found in IA! - it was NOT closed. Last check with logging...')
 					ia_pose = find_IA_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, test_close=True)		# Bool
+					print('find_IA_pose returned ia_pose:', ia_pose)
 				if not ia_pose:
 					print('Close position passed')
+					compare_time(ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='close', url=url, header=header)
 				else:
 					print('Close position NOT passed')
 		else:
-			print(f'Some position not found: MA: {ma_pose}, IA: {ia_pose}')
+			print('if ma_pose and ia_pose : NOT => close MA pos')
+			print(f'Same position not found: MA: {ma_pose}, IA: {ia_pose}')
 			ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id)		# Bool
+			print('MA pos close:', ma_pos_close)
+			print('Clearing file with pos ID')
 			write_pos('')
 
 
