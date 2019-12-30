@@ -278,6 +278,7 @@ def main(args):
 					print('find_IA_pose returned ia_pose:', ia_pose)
 					if not ia_pose:
 						print('ia_pose NOT found in IA! - it was closed, OK!')
+						#TODO добавить сообщение FAILED
 						break
 				else:
 					print('ia_pose still found in IA! - it was NOT closed. Last check with logging...')
