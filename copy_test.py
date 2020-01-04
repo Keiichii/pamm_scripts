@@ -199,7 +199,7 @@ def open_pos_and_check(args, logger, header, url, ma_login):
 			else:
 				ia_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, logger=logger)		# Bool
 			if not ia_pose:
-				ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id)		# Bool
+				ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id, logger=logger)		# Bool
 				write_pos('')
 			else:
 				compare_time(ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='open', logger=logger)
