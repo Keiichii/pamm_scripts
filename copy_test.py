@@ -11,7 +11,7 @@ deal_type = '0'
 comment = 'Zabbix test deal'
 base_req = {"jsonrpc":"2.0", "id":"null"}
 check_result = None
-pos_file = 'c:\\scripts\\copy_test_pos.txt'
+pos_file = ''
 
 ma_pos_data = {}
 ia_pos_data = {}
@@ -67,12 +67,12 @@ def find_pose(url, header, ma_login, ia_login, ma_pos_id, logger, log=True, test
 	global ma_pos_data, ia_pos_data
 	found = False
 	params = {"login": ia_login}
-	ia_poses, error = request(url=url, method='acc.pos', header=header, params=params)
+	data, error = request(url=url, method='acc.pos', header=header, params=params)
 	if error and log:
 		msg = f"Error getting {acc} positions: {error}"
 		error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)
-	elif ia_poses:
-		list_of_poses = ia_poses.get('poss')
+	elif data:
+		list_of_poses = data.get('poss')
 		if not test_close:
 			if not list_of_poses and log:
 				msg = 'List of {acc} posses is empty'
@@ -159,19 +159,25 @@ def compare_time(ma_pose, ia_pose, flag, logger, url=None, header=None):
 					for pos in ma_closed_poses:
 						if pos.get('pos_id') == pos_id:
 							pos_close_time = pos.get('time_close')
-							found = True
-							break
+							return pos_close_time
 					offset += 101
 					limit = 101
 				else:
 					break
-			return pos_close_time
-		ma_pos_close_time = found_pos(ma_id, ma_pos_id)
-		ia_pos_close_time = found_pos(ia_id, ia_pos_id)
-		diff = ia_pos_close_time - ma_pos_close_time
-		if diff > 3:
-			msg = 'Time difference between MA pos and IA positions CLOSE times: {diff} sec.'
-			error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='TIME WARNING', logger=logger)
+		if ma_id and ia_id:
+			ma_pos_close_time = found_pos(ma_id, ma_pos_id)
+			ia_pos_close_time = found_pos(ia_id, ia_pos_id)
+			if ma_pos_close_time and ia_pos_close_time:
+				diff = ia_pos_close_time - ma_pos_close_time
+				if diff > 3:
+					msg = 'Time difference between MA pos and IA positions CLOSE times: {diff} sec.'
+					error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='TIME WARNING', logger=logger)
+			else:
+				msg = 'Cant get time: ma_pos_close_time={ma_pos_close_time}, ia_pos_close_time={ia_pos_close_time}.'
+				error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)	
+		else:
+			msg = 'Cant find account ID for time checking: MA={ma_id}, IA={ia_id}.'
+			error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)
 
 
 def open_pos_and_check(args, logger, header, url, ma_login):
@@ -222,10 +228,11 @@ def close_pos_and_check(args, logger, header, url, ma_login, ma_pos_id):
 
 
 def main(args, logger):
-	global ma_pos_data, ia_pos_data
+	global ma_pos_data, ia_pos_data, pos_file
 	header = {'ManagerPass': args.ManagerPass}
 	url = args.Server
 	ma_login = args.MA_login
+	pos_file = f'c:\\scripts\\copy_test_pos_{ma_login}.txt'
 	ma_pos_id = read_pos(logger)
 	if not ma_pos_id:			# A - if no opened position
 		open_pos_and_check(args=args, logger=logger, header=header, url=url, ma_login=ma_login)
