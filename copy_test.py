@@ -138,8 +138,6 @@ def compare_time(ma_login, ia_login, ma_pose, ia_pose, flag, logger, url=None, h
 	if flag == 'open':
 		ma_open_pos_time = ma_pose.get('time')
 		ia_open_pos_time = ia_pose.get("time_create")
-		print(ctime(ma_open_pos_time))
-		print(ctime(ia_open_pos_time))
 		diff = ia_open_pos_time - ma_open_pos_time
 		if diff > 3:
 			msg = f'Time difference between MA pos and IA positions OPEN times: {diff} sec.'
@@ -147,8 +145,6 @@ def compare_time(ma_login, ia_login, ma_pose, ia_pose, flag, logger, url=None, h
 	else:
 		ma_pos_id = ma_pose.get('pos_id')
 		ia_pos_id = ia_pose.get('pos_id')
-		# ma_id = ma_pose.get('login')
-		# ia_id = ia_pose.get('login')
 		def found_pos(login, pos_id):
 			found = False
 			offset = 0
@@ -166,7 +162,6 @@ def compare_time(ma_login, ia_login, ma_pose, ia_pose, flag, logger, url=None, h
 					limit = 101
 				else:
 					break
-		# if ma_id and ia_id:
 		ma_pos_close_time = found_pos(ma_login, ma_pos_id)
 		ia_pos_close_time = found_pos(ia_login, ia_pos_id)
 		if ma_pos_close_time and ia_pos_close_time:
@@ -177,9 +172,6 @@ def compare_time(ma_login, ia_login, ma_pose, ia_pose, flag, logger, url=None, h
 		else:
 			msg = f'Cant get time: ma_pos_close_time={ma_pos_close_time}, ia_pos_close_time={ia_pos_close_time}.'
 			error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger, ma_pos_id=ma_pos_id)	
-		# else:
-		# 	msg = f'Cant find account ID for time checking: MA={ma_id}, IA={ia_id}.'
-		# 	error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)
 
 
 def open_pos_and_check(args, logger, header, url, ma_login):
