@@ -76,8 +76,8 @@ def find_pose(url, header, ma_login, ia_login, ma_pos_id, logger, log=True, test
 		if not test_close:
 			if not list_of_poses and log:
 				msg = f'List of {acc} posses is empty'
-				if master: error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='FAILED', logger=logger)
-				else: error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)
+				if master: error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)
+				else: error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='FAILED', logger=logger)
 			else:
 				for pos in list_of_poses:
 					if not master:
