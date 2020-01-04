@@ -75,7 +75,7 @@ def find_pose(url, header, ma_login, ia_login, ma_pos_id, logger, log=True, test
 		list_of_poses = data.get('poss')
 		if not test_close:
 			if not list_of_poses and log:
-				msg = 'List of {acc} posses is empty'
+				msg = f'List of {acc} posses is empty'
 				if master: error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='FAILED', logger=logger)
 				else: error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)
 			else:
@@ -134,19 +134,21 @@ def read_pos(logger):
 		return int(position_number) if position_number else False
 
 
-def compare_time(ma_pose, ia_pose, flag, logger, url=None, header=None):
+def compare_time(ma_login, ia_login, ma_pose, ia_pose, flag, logger, url=None, header=None):
 	if flag == 'open':
 		ma_open_pos_time = ma_pose.get('time')
 		ia_open_pos_time = ia_pose.get("time_create")
+		print(ctime(ma_open_pos_time))
+		print(ctime(ia_open_pos_time))
 		diff = ia_open_pos_time - ma_open_pos_time
 		if diff > 3:
-			msg = 'Time difference between MA pos and IA positions OPEN times: {diff} sec.'
-			error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='TIME WARNING', logger=logger)
+			msg = f'Time difference between MA pos and IA positions OPEN times: {diff} sec.'
+			error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='TIME WARNING', logger=logger, ma_pos_id=ma_pose.get('order'))
 	else:
 		ma_pos_id = ma_pose.get('pos_id')
 		ia_pos_id = ia_pose.get('pos_id')
-		ma_id = ma_pose.get('login')
-		ia_id = ia_pose.get('login')
+		# ma_id = ma_pose.get('login')
+		# ia_id = ia_pose.get('login')
 		def found_pos(login, pos_id):
 			found = False
 			offset = 0
@@ -164,20 +166,20 @@ def compare_time(ma_pose, ia_pose, flag, logger, url=None, header=None):
 					limit = 101
 				else:
 					break
-		if ma_id and ia_id:
-			ma_pos_close_time = found_pos(ma_id, ma_pos_id)
-			ia_pos_close_time = found_pos(ia_id, ia_pos_id)
-			if ma_pos_close_time and ia_pos_close_time:
-				diff = ia_pos_close_time - ma_pos_close_time
-				if diff > 3:
-					msg = 'Time difference between MA pos and IA positions CLOSE times: {diff} sec.'
-					error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='TIME WARNING', logger=logger)
-			else:
-				msg = 'Cant get time: ma_pos_close_time={ma_pos_close_time}, ia_pos_close_time={ia_pos_close_time}.'
-				error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)	
+		# if ma_id and ia_id:
+		ma_pos_close_time = found_pos(ma_login, ma_pos_id)
+		ia_pos_close_time = found_pos(ia_login, ia_pos_id)
+		if ma_pos_close_time and ia_pos_close_time:
+			diff = ia_pos_close_time - ma_pos_close_time
+			if diff > 3:
+				msg = f'Time difference between MA pos and IA positions CLOSE times: {diff} sec.'
+				error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='TIME WARNING', logger=logger, ma_pos_id=ma_pos_id)
 		else:
-			msg = 'Cant find account ID for time checking: MA={ma_id}, IA={ia_id}.'
-			error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)
+			msg = f'Cant get time: ma_pos_close_time={ma_pos_close_time}, ia_pos_close_time={ia_pos_close_time}.'
+			error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger, ma_pos_id=ma_pos_id)	
+		# else:
+		# 	msg = f'Cant find account ID for time checking: MA={ma_id}, IA={ia_id}.'
+		# 	error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)
 
 
 def open_pos_and_check(args, logger, header, url, ma_login):
@@ -185,7 +187,7 @@ def open_pos_and_check(args, logger, header, url, ma_login):
 	ma_pos, error = open_MA_pos(url=url, header=header, ma_login=ma_login, symbol=args.Symbol, deal_type=deal_type, lot=args.Lot, comment=comment)
 	ma_pos_data = ma_pos
 	if error:
-		msg = 'Error opening Master position: {error}'
+		msg = f'Error opening Master position: {error}'
 		error_info(msg=msg, url=url, ma_login=ma_login, result='FAILED', logger=logger)
 	elif ma_pos:
 		ma_pos_id = ma_pos.get('order')
@@ -200,7 +202,6 @@ def open_pos_and_check(args, logger, header, url, ma_login):
 				#2 Find investor's Poses linked to MA
 				ia_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, log=False, logger=logger)		# Bool
 				if ia_pose:
-					compare_time(ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='open', logger=logger)
 					break
 			else:
 				ia_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, logger=logger)		# Bool
@@ -208,7 +209,7 @@ def open_pos_and_check(args, logger, header, url, ma_login):
 				ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id, logger=logger)		# Bool
 				write_pos('')
 			else:
-				compare_time(ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='open', logger=logger)
+				compare_time(ma_login=ma_login, ia_login=args.IA_login, ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='open', logger=logger, url=url)
 
 
 def close_pos_and_check(args, logger, header, url, ma_login, ma_pos_id):
@@ -224,7 +225,7 @@ def close_pos_and_check(args, logger, header, url, ma_login, ma_pos_id):
 		else:
 			ia_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, test_close=True, logger=logger)		# Bool
 		if not ia_pose:
-			compare_time(ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='close', url=url, header=header, logger=logger)
+			compare_time(ma_login=ma_login, ia_login=args.IA_login, ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='close', url=url, header=header, logger=logger)
 
 
 def main(args, logger):
