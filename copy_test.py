@@ -136,7 +136,7 @@ def read_pos(logger):
 
 def compare_time(ma_login, ia_login, ma_pose, ia_pose, flag, logger, url=None, header=None):
 	if flag == 'open':
-		ma_open_pos_time = ma_pose.get('time_create')
+		ma_open_pos_time = ma_pose.get('time')
 		ia_open_pos_time = ia_pose.get("time_create")
 		diff = ia_open_pos_time - ma_open_pos_time
 		if diff > 3:
@@ -201,7 +201,6 @@ def open_pos_and_check(args, logger, header, url, ma_login):
 				ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id, logger=logger)		# Bool
 				write_pos('')
 			else:
-				ma_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=ma_login, ma_pos_id=ma_pos_id, master=True, log=False, logger=logger)		# Bool
 				compare_time(ma_login=ma_login, ia_login=args.IA_login, ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='open', logger=logger, url=url)
 
 
