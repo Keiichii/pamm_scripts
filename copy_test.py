@@ -90,7 +90,9 @@ def find_pose(url, header, ma_login, ia_login, ma_pos_id, logger, log=True, test
 						cur_pos = pos.get('pos_id')
 						if cur_pos == ma_pos_id:
 							found = True
+							print(pos)
 							ma_pos_data = pos
+							print(ma_pos_data)
 						else:
 							#close all other positions
 							ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=cur_pos, logger=logger)		# Bool
@@ -136,7 +138,8 @@ def read_pos(logger):
 
 def compare_time(ma_login, ia_login, ma_pose, ia_pose, flag, logger, url=None, header=None):
 	if flag == 'open':
-		ma_open_pos_time = ma_pose.get('time')
+		print(ma_pose)
+		ma_open_pos_time = ma_pose.get('time_create')
 		ia_open_pos_time = ia_pose.get("time_create")
 		diff = ia_open_pos_time - ma_open_pos_time
 		if diff > 3:
@@ -177,7 +180,7 @@ def compare_time(ma_login, ia_login, ma_pose, ia_pose, flag, logger, url=None, h
 def open_pos_and_check(args, logger, header, url, ma_login):
 	#Open pos
 	ma_pos, error = open_MA_pos(url=url, header=header, ma_login=ma_login, symbol=args.Symbol, deal_type=deal_type, lot=args.Lot, comment=comment)
-	ma_pos_data = ma_pos
+	global ma_pos_data
 	if error:
 		msg = f'Error opening Master position: {error}'
 		error_info(msg=msg, url=url, ma_login=ma_login, result='FAILED', logger=logger)
@@ -201,6 +204,7 @@ def open_pos_and_check(args, logger, header, url, ma_login):
 				ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id, logger=logger)		# Bool
 				write_pos('')
 			else:
+				ma_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=ma_login, ma_pos_id=ma_pos_id, master=True, log=False, logger=logger)		# Bool
 				compare_time(ma_login=ma_login, ia_login=args.IA_login, ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='open', logger=logger, url=url)
 
 
