@@ -90,9 +90,7 @@ def find_pose(url, header, ma_login, ia_login, ma_pos_id, logger, log=True, test
 						cur_pos = pos.get('pos_id')
 						if cur_pos == ma_pos_id:
 							found = True
-							print(pos)
 							ma_pos_data = pos
-							print(ma_pos_data)
 						else:
 							#close all other positions
 							ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=cur_pos, logger=logger)		# Bool
@@ -138,7 +136,6 @@ def read_pos(logger):
 
 def compare_time(ma_login, ia_login, ma_pose, ia_pose, flag, logger, url=None, header=None):
 	if flag == 'open':
-		print(ma_pose)
 		ma_open_pos_time = ma_pose.get('time_create')
 		ia_open_pos_time = ia_pose.get("time_create")
 		diff = ia_open_pos_time - ma_open_pos_time
