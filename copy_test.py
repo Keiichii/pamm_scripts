@@ -217,7 +217,7 @@ def close_pos_and_check(args, logger, header, url, ma_login, ma_pos_id):
 				break
 		else:
 			ia_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, test_close=True, logger=logger)		# Bool
-		if not ia_pose:
+		if ia_pose:
 			compare_time(ma_login=ma_login, ia_login=args.IA_login, ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='close', url=url, header=header, logger=logger)
 
 
