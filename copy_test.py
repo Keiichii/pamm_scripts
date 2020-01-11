@@ -269,40 +269,40 @@ def open_pos_and_check():
 	'return test result: PASSED / FAILED / FAILED - BALANCE / WARNING / TIME WARNING'
 	#check balances before open positions
 	add_log('INFO', "***  Start fase A - open position test  ***")
-	ma_pos_id = None
+	answer = ma_pos_id = None
 	result = check_balances([args.MA_login, args.IA_login])
 	if not result:
 		add_log('ERROR', 'Checking accounts balances...FAIL')
-		return 'FAILED - BALANCE'
+		answer = 'FAILED - BALANCE'
 	elif result == 'TIMEOUT':
-		return 'WARNING'
+		answer = 'WARNING'
 	else:
 		add_log('INFO', 'Checking accounts balances...OK')
 		#open MA position
 		ma_pos_id = open_ma_pos()
 		if not ma_pos_id:
 			add_log('ERROR', "Opening Master's position...FAIL")
-			return 'FAILED'
+			answer = 'FAILED'
 		elif ma_pos_id == 'TIMEOUT':
-			return 'WARNING'
+			answer = 'WARNING'
 		else:	
 			add_log('INFO', "Opening Master's position...OK")
 			#get master's position data
 			found_ma = check_pos(args.MA_login, ma_pos_id, master=True)
 			if not found_ma:
 				add_log('ERROR', "Searching for open position on master...FAIL")
-				return 'FAILED'
+				answer = 'FAILED'
 			elif found_ma == 'TIMEOUT':
-				return 'WARNING'
+				answer = 'WARNING'
 			else:
 				add_log('INFO', "Searching for open position on master...OK")
 				#check that position was copied to investor
 				found = check_pos(args.IA_login, ma_pos_id)
 				if not found:
 					add_log('ERROR', "Searching for open position on investor...FAIL")
-					return 'FAILED'
+					answer = 'FAILED'
 				elif found == 'TIMEOUT':
-					return 'WARNING'
+					answer = 'WARNING'
 				else:
 					add_log('INFO', "Searching for open position on investor...OK")
 					#write pos id to file for fase B
@@ -311,10 +311,11 @@ def open_pos_and_check():
 					result = compare_time()
 					if not result:
 						add_log('ERROR', 'Comparing OPEN time between MA and IA positions...FAIL')
-						return 'TIME WARNING'
+						answer = 'TIME WARNING'
 					else:
 						add_log('INFO', "Comparing OPEN time between MA and IA positions...OK")
-	return 'PASSED'
+	answer = 'PASSED'
+	return answer, ma_pos_id
 
 
 def read_pos():
@@ -351,16 +352,17 @@ def start_test():
 	add_log('DEBUG', f'>>> pos id from file: {ma_pos_id}')
 	if not ma_pos_id:
 		#fase A
-		result = open_pos_and_check()
+		result, ma_pos_id = open_pos_and_check()
 	else:
 		#fase B
 		result = close_pos_and_check(ma_pos_id)
 		#clear pos id in file for fase A
 		write_pos('')
 		if result == 'FAILED':
-			result = open_pos_and_check()
+			result, ma_pos_id = open_pos_and_check()
 	#close all other positions
-	close_other_poses(ma_pos_id)
+	if ma_pos_id:
+		close_other_poses(ma_pos_id)
 	return result
 
 
