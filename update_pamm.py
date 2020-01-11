@@ -344,12 +344,12 @@ def update(svc, local_services, new_version):
                                 logger.exception(f'Replacing {file} general Exception:')
                             else:
                                 break
-                            finally:
-                                os.chdir(app_path)
-                                cmd = 'ICACLS * /reset'
-                                p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE, encoding='cp866')
-                                stdout, stderr = p.communicate()
-                                logger.info(f'Permission correction results:\n    stdout: {stdout}\n    stderr: {stderr}')
+                    #restore permissions
+                    os.chdir(app_path)
+                    cmd = 'ICACLS * /reset'
+                    p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE, encoding='cp866')
+                    stdout, stderr = p.communicate()
+                    logger.info(f'Permission correction results:\n    stdout: {stdout}\n    stderr: {stderr}')
                     #4.3 - start service
                     start(svc, handle)
                     logger.info(f'======================================= \n {svc} update finished.\n')
