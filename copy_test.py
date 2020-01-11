@@ -90,7 +90,7 @@ def request(method, params):
 	return result
 
 
-def close_pos(ma_pos_id, other=False):
+def close_pos(ma_pos_id):
 	'close MA pos and return True if ok, or TIMEOUT if timeout'
 	add_log('INFO', "Closing Master's position...")
 	params = {"login": args.MA_login, 'pos_id': ma_pos_id}
@@ -113,6 +113,7 @@ def close_other_poses(ma_pos_id):
 				pos_id = pos.get('pos_id')
 				if pos_id != ma_pos_id:
 					add_log('DEBUG', f"    >>> closing position {pos_id}")
+					close_pos(pos_id)
 
 
 def compare_time(closed=False):
@@ -176,8 +177,6 @@ def close_pos_and_check(ma_pos_id):
 					return 'TIME WARNING'
 				else:
 					add_log('INFO', "Comparing CLOSE time between MA and IA positions...OK")
-	#close all other positions
-	close_other_poses(ma_pos_id)
 	return 'PASSED'
 
 
@@ -315,9 +314,7 @@ def open_pos_and_check():
 						return 'TIME WARNING'
 					else:
 						add_log('INFO', "Comparing OPEN time between MA and IA positions...OK")
-	#close all other positions
-	close_other_poses(ma_pos_id)
-	return 'PASSED', ma_pos_id
+	return 'PASSED'
 
 
 def read_pos():
@@ -362,6 +359,8 @@ def start_test():
 		write_pos('')
 		if result == 'FAILED':
 			result = open_pos_and_check()
+	#close all other positions
+	close_other_poses(ma_pos_id)
 	return result
 
 
