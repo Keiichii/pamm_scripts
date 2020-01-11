@@ -1,256 +1,387 @@
+from time import sleep, time, ctime
+start_time = time()
+
 import argparse
 import requests
 import json
-from time import sleep, time, ctime
-import logger
+from logger import logger, create_con_logger, states
 
 
-#Repo changes
-
-deal_type = '0'
+deal_type = '0'     #0 = buy; 1 = sell
 comment = 'Zabbix test deal'
-base_req = {"jsonrpc":"2.0", "id":"null"}
-check_result = None
-pos_file = ''
-
+base_request = {"jsonrpc":"2.0", "id":"null"}
 ma_pos_data = {}
 ia_pos_data = {}
+error_log = {'msgs': [],}	# [(status, text),], status, additional info
 
 
-def request(url, method, header, params):
-	result = error = None
-	data = base_req
+def check_runtime():
+	'returns False if no free time left (<2 sec)'
+	time_left = args.Timeout - (time() - start_time)
+	if time_left < 2:
+		add_log('ERROR', 'Script timeout! Please, check logs.')
+		return False
+	else:
+		return True
+
+
+def add_log(status, msg):
+	'''add (status, msg) to error log list.
+
+	statuses: DEBUG, INFO, WARNING, ERROR, CRITICAL'''
+	error_log['msgs'].append((status, msg))
+
+
+def report(debug, result):
+	'send error report with additional info to logger'
+	#set report level
+	if debug:
+		create_con_logger('DEBUG')		# report ALL
+	elif result == 'FAILED' or result == 'FAILED - BALANCE':
+		create_con_logger('INFO')		# test FAILED, report main steps and errors
+	else:									
+		create_con_logger('WARNING')	# test PASSED, report only warnings
+	#add general test result
+	if result == 'WARNING' or result == 'TIME WARNING':
+		add_log('WARNING', f'Copy test: {result}')
+	else:
+		add_log('INFO', f'Copy test: {result}')
+	#report all messages from queue
+	for msg in error_log['msgs']:
+		m_state, m_text = msg
+		if (m_state == 'REQUEST' and args.request) or (m_state == 'DATA' and args.data):
+			m_state = 'WARNING'
+		elif m_state == 'REQUEST' or m_state == 'DATA':
+			continue
+		logger.log(states[m_state], m_text)
+
+
+def request(method, params):
+	'''return result from response[result]
+	
+	or return TIMEOUT if timeout'''
+	if not check_runtime():
+		return 'TIMEOUT'
+	result = None
+	header = {'ManagerPass': args.ManagerPass}
+	data = base_request
 	data['method'] = method
 	data['params'] = params
+	add_log('REQUEST', f'    >>> request header: {header}')
+	add_log('REQUEST', f'    >>> request data: {data}')
 	try:
-		response = requests.post(f'http://{url}/dx', data=json.dumps(data), headers=header, timeout=30)
+		s = time()
+		response = requests.post(f'http://{args.Server}/dx', data=json.dumps(data), headers=header, timeout=args.Timeout-2)
 	except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-		error = f'Cannot connect: {e}'
+		add_log('WARNING', f'    Cannot connect to service: {e}')
 	except Exception as e:
-		error = f'Exception: {e}'
+		error = f'Connection exception: {e}'
 	else:
 		data = response.json()
-		if 'result' in data:
-			result = data['result']
-		elif 'error' in data:
-			error = data['error']
-			if error.get('message') == 'access token not found':
-				error = 'Cannot connect, access token not found.'
-	return result, error
-
-
-def open_MA_pos(url, header, ma_login, symbol, deal_type, lot, comment=''):
-	'Returns {data} of opened pos'
-	params = {"login":ma_login, "symbol": symbol, "type": deal_type, "lot": lot, "comment": comment}
-	ma_pos, error = request(url=url, method='pos.open', header=header, params=params)
-	return ma_pos, error
-
-
-def close_MA_pos(url, header, ma_login, ma_pos_id, logger):
-	result = False
-	params = {"login": ma_login, 'pos_id': ma_pos_id}
-	ma_pos_close, error = request(url=url, method='pos.close', header=header, params=params)
-	if error:
-		msg = f"Error closing MA position: {error}"
-		error_info(msg=msg, url=url, ma_login=ma_login, result='WARNING', ma_pos_id=ma_pos_id, logger=logger)
-	elif ma_pos_close:
-		logger.info(f'MA Position closed with message: {ma_pos_close}')
-		result = True
-	else:
-		result = True
+		result = data.get('result')
+		error = data.get("error")
+		if error:
+			add_log('WARNING', f'    Request returned error: {error}')
+		#special case for 'pos.close' because it return empty 'result' if ok, and return 'error' if any
+		if method == 'pos.close' and not error:
+			result = True
+	finally:
+		add_log('DEBUG', f'    >>> time for request {method} = {time()-s}')
 	return result
 
 
-def find_pose(url, header, ma_login, ia_login, ma_pos_id, logger, log=True, test_close=False, master=False):
-	if master: acc = 'Master'
-	else: acc = 'Inverstor'
-	global ma_pos_data, ia_pos_data
-	found = False
-	params = {"login": ia_login}
-	data, error = request(url=url, method='acc.pos', header=header, params=params)
-	if error and log:
-		msg = f"Error getting {acc} positions: {error}"
-		error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)
-	elif data:
-		list_of_poses = data.get('poss')
-		if not test_close:
-			if not list_of_poses and log:
-				msg = f'List of {acc} posses is empty'
-				if master: error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger)
-				else: error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='FAILED', logger=logger)
+def close_pos(ma_pos_id, other=False):
+	'close MA pos and return True if ok, or TIMEOUT if timeout'
+	add_log('INFO', "Closing Master's position...")
+	params = {"login": args.MA_login, 'pos_id': ma_pos_id}
+	data = request(method='pos.close', params=params)
+	add_log('DATA', f'    >>> response data for closing pos: {data}')
+	return data
+
+
+def close_other_poses(ma_pos_id):
+	'close MA poses except inputed and return WARNING if timeout'
+	add_log('INFO', "Closing all other Master's position...")
+	params = {"login": args.MA_login}
+	data = request(method='acc.pos', params=params)
+	add_log('DATA', f'    >>> response data for closing pos: {data}')
+	if data and isinstance(data, dict):
+		poses = data.get('poss')
+		if poses:
+			add_log('DEBUG', f'    >>> number of poses: {len(poses)}')
+			for pos in poses:
+				pos_id = pos.get('pos_id')
+				if pos_id != ma_pos_id:
+					add_log('DEBUG', f"    >>> closing position {pos_id}")
+
+
+def compare_time(closed=False):
+	'Compare difference between MA and IA positions OPEN and CLOSE time and report if >3 sec'
+	if closed:
+		w = 'CLOSE'
+		t = 'time_close'
+	else:
+		w = 'OPEN'
+		t = 'time_create'
+	add_log('INFO', f"Comparing {w} time between MA and IA positions...")
+	ma_pos_time = ma_pos_data.get(t)
+	ia_pos_time = ia_pos_data.get(t)
+	diff = ia_pos_time - ma_pos_time
+	add_log('DEBUG', f"    >>> {w} time between MA and IA positions = {diff} sec")
+	if diff > 3:
+		add_log('WARNING', f'    {w} time difference between MA and IA positions: {diff} sec.')
+		return False
+	elif diff < 0:
+		add_log('WARNING', f'    {w} time difference between MA and IA positions is NEGATIVE: {diff} sec.')
+		return False
+	return True
+
+
+def close_pos_and_check(ma_pos_id):
+	'return test result: PASSED / FAILED / WARNING / TIME WARNING'
+	#at first check that position exist on both acounts
+	add_log('INFO', "***  Start fase B - close position test  ***")
+	ma_pos = check_pos(args.MA_login, ma_pos_id, master=True)
+	ia_pos = check_pos(args.IA_login, ma_pos_id)
+	if not all((ma_pos, ia_pos)):
+		add_log('ERROR', f"Searching for open position on {'master' if not ma_pos else 'investor'}...FAIL")
+		return 'FAILED'
+	elif ma_pos == 'TIMEOUT' or ia_pos == 'TIMEOUT':
+		return 'WARNING'
+	else:
+		add_log('INFO', "Searching for open position on both accounts...OK")
+		#close Master position
+		result = close_pos(ma_pos_id)
+		if not result:
+			add_log('ERROR', f"Closing Master's position...FAIL")
+			return 'FAILED'
+		elif result == 'TIMEOUT':
+			return 'WARNING'
+		else:
+			add_log('INFO', f"Closing Master's position...OK")
+			#check that linked pos on investor closed too
+			ma_pos = check_pos(args.MA_login, ma_pos_id, master=True, closed=True)
+			ia_pos = check_pos(args.IA_login, ma_pos_id, closed=True)
+			if not all((ma_pos, ia_pos)):
+				add_log('ERROR', f"Searching for closed position on {'master' if not ma_pos else 'investor'}...FAIL")
+				return 'FAILED'
+			elif ma_pos == 'TIMEOUT' or ia_pos == 'TIMEOUT':
+				return 'WARNING'
 			else:
-				for pos in list_of_poses:
-					if not master:
-						ia_pos = pos.get('ma').get('pos_id')
-						if ia_pos == ma_pos_id:
-							found = True
-							ia_pos_data = pos
-							break
+				add_log('INFO', "Searching for closed position on both accounts...OK")
+				#compare close time between master and investor positions
+				result = compare_time(closed=True)
+				if not result:
+					add_log('ERROR', 'Comparing CLOSE time between MA and IA positions...FAIL')
+					return 'TIME WARNING'
+				else:
+					add_log('INFO', "Comparing CLOSE time between MA and IA positions...OK")
+	#close all other positions
+	close_other_poses(ma_pos_id)
+	return 'PASSED'
+
+
+def check_pos(acc, pos_id, master=False, closed=False):
+	'''search for pose on account and return True is found, and TIMEOUT if timeout
+	
+	also add pos data to global ma_pos_data & ia_pos_data'''
+	global ia_pos_data, ma_pos_data
+	x = 0
+	add_log('INFO', f"Searching for position on {'Master' if master else 'Investor'}...")
+	result = data = poses = None
+	pos = {}
+	params = {"login": acc}
+	if closed:
+		params.update({"close_time": True, "limit": 1, "offset": 0})
+	while check_runtime() and x < 3 :
+		data = request(method='acc.pos', params=params)
+		if data == 'TIMEOUT':
+			return data
+		if data:
+			poses = data.get('poss')
+			if poses:
+				for pos in poses:
+					if master:
+						ma_pos_id = pos.get('pos_id')
 					else:
-						cur_pos = pos.get('pos_id')
-						if cur_pos == ma_pos_id:
-							found = True
+						ma_pos_id = pos.get('ma').get('pos_id')
+					if pos_id == ma_pos_id:
+						if master:
 							ma_pos_data = pos
 						else:
-							#close all other positions
-							ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=cur_pos, logger=logger)		# Bool
-				if not found and log:
-					if master: msg = 'Error: no saved position found on Master'
-					else: msg = 'Error: no copied position found on Investor'
-					error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='FAILED', ma_pos_id=ma_pos_id, logger=logger)
-		else:
-			if list_of_poses:
-				for pos in list_of_poses:
-					if pos.get('ma').get('pos_id') == ma_pos_id and log:
-						found = True
-						msg = 'ERROR - Pose found in investor, it hasnt been closed with master position.'
-						error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='FAILED', ma_pos_id=ma_pos_id, logger=logger)
+							ia_pos_data = pos
+						result = True
 						break
-	return found
+				if result:
+					break
+		sleep(1)		#wait between requests
+		x += 1
+	add_log('DATA', f'    >>> response data for searching pos: {data}')
+	if not poses:
+		add_log('ERROR', f'    list of {acc} posses is empty')
+	if not result:
+		if master:
+			add_log('ERROR', f'    pos not found on master: {pos_id}')
+		else:
+			add_log('ERROR', f'    copied pos not found for ma pos: {pos_id}')
+	else:
+		add_log('DEBUG', f'    >>> pos found: {pos.get("pos_id")}')
+		add_log('DATA', f'    >>> pos found: {pos}')
+	return result
 
 
-def error_info(logger, msg=None, url=None, ma_login=None, ia_login=None, result=None, ma_pos_id=None):
-	if msg: logger.error(msg)
-	if ma_login: logger.error(f'Master acc: {ma_login}')
-	if ma_pos_id: logger.error(f'Master position: {ma_pos_id}')
-	if ia_login: logger.error(f'Investor acc: {ia_login}')
-	if url: logger.error(f"Service port: {url.split(':')[-1]}")
-	if result: logger.error(f'Copy test: {result}')
+def open_ma_pos():
+	'open MA pos and return pos id, and TIMEOUT if timeout'
+	add_log('INFO', "Opening Master's position...")
+	params = {"login": args.MA_login, "symbol": args.Symbol, "type": deal_type, "lot": args.Lot, "comment": comment}
+	data = request(method='pos.open', params=params)
+	add_log('DATA', f'    >>> response data for opening pos: {data}')
+	if data == 'TIMEOUT':
+		return data
+	elif data and data.get('order'):
+		add_log('DEBUG', f'    >>> MA pos #: {data["order"]}')
+		return data['order']
 
 
-def write_pos(position_number):
-	with open(pos_file, 'w') as f:
-		f.write(str(position_number))
+def check_balances(accounts):
+	'check balances of MA and IA and return True if both ok, and TIMEOUT if timeout'
+	add_log('INFO', 'Checking accounts balances...')
+	result = []
+	for acc in accounts:
+		params = {"login": acc, "as_my": True}
+		data = request(method='acc.prop', params=params)
+		add_log('DATA', f'    >>> response data for {acc}: {data}')
+		if data == 'TIMEOUT':
+			return data
+		elif data:
+			margin_free = data.get('acc').get('margin_free')
+			add_log('DEBUG', f'    >>> acc {acc} has free margin = {margin_free}')
+			if margin_free < 10:
+				add_log('ERROR', f'    acc {acc} has not enough free margin = {margin_free} - ADD BALANCE!')
+				result.append(False)
+			else:
+				result.append(True)
+		else:
+			result.append(False)
+	return all(result)
 
 
-def read_pos(logger):
+def open_pos_and_check():
+	'return test result: PASSED / FAILED / FAILED - BALANCE / WARNING / TIME WARNING'
+	#check balances before open positions
+	add_log('INFO', "***  Start fase A - open position test  ***")
+	ma_pos_id = None
+	result = check_balances([args.MA_login, args.IA_login])
+	if not result:
+		add_log('ERROR', 'Checking accounts balances...FAIL')
+		return 'FAILED - BALANCE'
+	elif result == 'TIMEOUT':
+		return 'WARNING'
+	else:
+		add_log('INFO', 'Checking accounts balances...OK')
+		#open MA position
+		ma_pos_id = open_ma_pos()
+		if not ma_pos_id:
+			add_log('ERROR', "Opening Master's position...FAIL")
+			return 'FAILED'
+		elif ma_pos_id == 'TIMEOUT':
+			return 'WARNING'
+		else:	
+			add_log('INFO', "Opening Master's position...OK")
+			#get master's position data
+			found_ma = check_pos(args.MA_login, ma_pos_id, master=True)
+			if not found_ma:
+				add_log('ERROR', "Searching for open position on master...FAIL")
+				return 'FAILED'
+			elif found_ma == 'TIMEOUT':
+				return 'WARNING'
+			else:
+				add_log('INFO', "Searching for open position on master...OK")
+				#check that position was copied to investor
+				found = check_pos(args.IA_login, ma_pos_id)
+				if not found:
+					add_log('ERROR', "Searching for open position on investor...FAIL")
+					return 'FAILED'
+				elif found == 'TIMEOUT':
+					return 'WARNING'
+				else:
+					add_log('INFO', "Searching for open position on investor...OK")
+					#write pos id to file for fase B
+					write_pos(ma_pos_id)
+					#compare open time between master and investor positions
+					result = compare_time()
+					if not result:
+						add_log('ERROR', 'Comparing OPEN time between MA and IA positions...FAIL')
+						return 'TIME WARNING'
+					else:
+						add_log('INFO', "Comparing OPEN time between MA and IA positions...OK")
+	#close all other positions
+	close_other_poses(ma_pos_id)
+	return 'PASSED', ma_pos_id
+
+
+def read_pos():
+	'return pos id from file'
 	try:
 		with open(pos_file, 'r') as f:
-			position_number = f.read()
+			pos_id = f.read()
 	except FileNotFoundError:
-		logger.info('File with pos id not found')
+		add_log('INFO', 'File with position id not found')
+		return False
+	except Exception as e:
+		add_log('WARNING', f'Read pos id from file Exception: {e}')
 		return False
 	else:
-		return int(position_number) if position_number else False
+		return int(pos_id) if pos_id else False
 
 
-def compare_time(ma_login, ia_login, ma_pose, ia_pose, flag, logger, url=None, header=None):
-	if flag == 'open':
-		ma_open_pos_time = ma_pose.get('time_create')
-		ia_open_pos_time = ia_pose.get("time_create")
-		diff = ia_open_pos_time - ma_open_pos_time
-		if diff > 3:
-			msg = f'Time difference between MA pos and IA positions OPEN times: {diff} sec.'
-			error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='TIME WARNING', logger=logger, ma_pos_id=ma_pose.get('order'))
+def write_pos(ma_pos_id):
+	'write pos id to file, return True if ok'
+	try:
+		with open(pos_file, 'w') as f:
+			f.write(str(ma_pos_id))
+	except Exception as e:
+		add_log('WARNING', f'Write pos id to file Exception: {e}')
+		return False
 	else:
-		ma_pos_id = ma_pose.get('pos_id')
-		ia_pos_id = ia_pose.get('pos_id')
-		def found_pos(login, pos_id):
-			found = False
-			offset = 0
-			limit = 1
-			while not found:
-				params = {"login": login, "close_time": True, "limit": limit, 'offset': offset}
-				ma_data, error = request(url=url, method='acc.pos', header=header, params=params)
-				ma_closed_poses = ma_data.get('poss')
-				if ma_closed_poses:
-					for pos in ma_closed_poses:
-						if pos.get('pos_id') == pos_id:
-							pos_close_time = pos.get('time_close')
-							return pos_close_time
-					offset += 101
-					limit = 101
-				else:
-					break
-		ma_pos_close_time = found_pos(ma_login, ma_pos_id)
-		ia_pos_close_time = found_pos(ia_login, ia_pos_id)
-		if ma_pos_close_time and ia_pos_close_time:
-			diff = ia_pos_close_time - ma_pos_close_time
-			if diff > 3:
-				msg = f'Time difference between MA pos and IA positions CLOSE times: {diff} sec.'
-				error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='TIME WARNING', logger=logger, ma_pos_id=ma_pos_id)
-		else:
-			msg = f'Cant get time: ma_pos_close_time={ma_pos_close_time}, ia_pos_close_time={ia_pos_close_time}.'
-			error_info(msg=msg, url=url, ma_login=ma_login, ia_login=ia_login, result='WARNING', logger=logger, ma_pos_id=ma_pos_id)	
+		return True
 
 
-def open_pos_and_check(args, logger, header, url, ma_login):
-	#Open pos
-	ma_pos, error = open_MA_pos(url=url, header=header, ma_login=ma_login, symbol=args.Symbol, deal_type=deal_type, lot=args.Lot, comment=comment)
-	global ma_pos_data
-	if error:
-		msg = f'Error opening Master position: {error}'
-		error_info(msg=msg, url=url, ma_login=ma_login, result='FAILED', logger=logger)
-	elif ma_pos:
-		ma_pos_id = ma_pos.get('order')
-		if not ma_pos_id:
-			msg = 'Cannot get Master position ID'
-			error_info(msg=msg, url=url, ma_login=ma_login, result='FAILED', logger=logger)
-		else:
-			write_pos(ma_pos_id)
-			for _ in range(int(args.Wait) // 2):
-				#Waiting for coping positions
-				sleep(2)
-				#2 Find investor's Poses linked to MA
-				ia_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, log=False, logger=logger)		# Bool
-				if ia_pose:
-					break
-			else:
-				ia_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, logger=logger)		# Bool
-			if not ia_pose:
-				ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id, logger=logger)		# Bool
-				write_pos('')
-			else:
-				ma_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=ma_login, ma_pos_id=ma_pos_id, master=True, log=False, logger=logger)		# Bool
-				compare_time(ma_login=ma_login, ia_login=args.IA_login, ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='open', logger=logger, url=url)
-
-
-def close_pos_and_check(args, logger, header, url, ma_login, ma_pos_id):
-	#Close MA Pos
-	ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id, logger=logger)		# Bool
-	write_pos('')
-	if ma_pos_close:
-		for _ in range(int(args.Wait) // 2):
-			sleep(2)
-			ia_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, test_close=True, log=False, logger=logger)		# Bool
-			if not ia_pose:
-				break
-		else:
-			ia_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, test_close=True, logger=logger)		# Bool
-		if not ia_pose:
-			compare_time(ma_login=ma_login, ia_login=args.IA_login, ma_pose=ma_pos_data, ia_pose=ia_pos_data, flag='close', url=url, header=header, logger=logger)
-
-
-def main(args, logger):
-	global ma_pos_data, ia_pos_data, pos_file
-	header = {'ManagerPass': args.ManagerPass}
-	url = args.Server
-	ma_login = args.MA_login
-	pos_file = f'c:\\scripts\\copy_test_pos_{ma_login}.txt'
-	ma_pos_id = read_pos(logger)
-	if not ma_pos_id:			# A - if no opened position
-		open_pos_and_check(args=args, logger=logger, header=header, url=url, ma_login=ma_login)
-	else: 						# B ma_opened position exist
-		ma_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=ma_login, ma_pos_id=ma_pos_id, master=True, log=False, logger=logger)		# Bool
-		ia_pose = find_pose(url=url, header=header, ma_login=ma_login, ia_login=args.IA_login, ma_pos_id=ma_pos_id, log=False, logger=logger)		# Bool
-		if ma_pose and ia_pose:
-			close_pos_and_check(args=args, logger=logger, header=header, url=url, ma_login=ma_login, ma_pos_id=ma_pos_id)
-		else:
-			ma_pos_close = close_MA_pos(url=url, header=header, ma_login=ma_login, ma_pos_id=ma_pos_id, logger=logger)		# Bool
-			write_pos('')
-			open_pos_and_check(args=args, logger=logger, header=header, url=url, ma_login=ma_login)
+def start_test():
+	'return: PASSED / FAILED / FAILED - BALANCE / WARNING / TIME WARNING'
+	# read file with position ID
+	ma_pos_id = read_pos()
+	add_log('DEBUG', f'>>> pos id from file: {ma_pos_id}')
+	if not ma_pos_id:
+		#fase A
+		result = open_pos_and_check()
+	else:
+		#fase B
+		result = close_pos_and_check(ma_pos_id)
+		#clear pos id in file for fase A
+		write_pos('')
+		if result == 'FAILED':
+			result = open_pos_and_check()
+	return result
 
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Tests PAMM services with copying deals')
 	parser.add_argument('Server', help='IP:port')
-	parser.add_argument('ManagerPass', help='PAMM manager password')
+	parser.add_argument('ManagerPass', help='Manager password')
 	parser.add_argument('MA_login', help='MT Master login')
 	parser.add_argument('IA_login', help='MT Investor login')
-	parser.add_argument('Wait', help='Wait for copy deal, sec')
+	parser.add_argument('Timeout', help='Timeout for copy deal, 5-30 sec', type=int, choices=range(5, 30), metavar='Timeout')
 	parser.add_argument('Symbol', help='Symbol, default is XRPUSD')
-	parser.add_argument('Lot', help='Lot size, default is 1 for XRPUSD')
-
+	parser.add_argument('Lot', help='Lot size, default is 1 for XRPUSD, 0.01 for FX')
+	parser.add_argument('--debug', help='Print all debug information', action='store_true')
+	parser.add_argument('--request', help='Print all requests', action='store_true')
+	parser.add_argument('--data', help='Print all data responses', action='store_true')
 	args = parser.parse_args()
-	logger.create_con_logger('INFO')
-	main(args, logger.logger)
+	
+	pos_file = f'c:\\scripts\\copy_test_pos_{args.MA_login}.txt'
+
+	result = start_test()
+
+	report(args.debug, result)
+	logger.debug(f'>>> Time: {time() - start_time}')
