@@ -37,7 +37,7 @@ def report(debug, result):
 	#set report level
 	if debug:
 		create_con_logger('DEBUG')		# report ALL
-	elif result == 'FAILED' or result == 'FAILED - BALANCE':
+	elif result == 'FAILED' or result == 'FAILED - BALANCE' or result == 'WARNING':
 		create_con_logger('INFO')		# test FAILED, report main steps and errors
 	else:									
 		create_con_logger('WARNING')	# test PASSED, report only warnings
@@ -317,7 +317,7 @@ def open_pos_and_check():
 						answer = 'TIME WARNING'
 					else:
 						add_log('INFO', "Comparing OPEN time between MA and IA positions...OK")
-	answer = 'PASSED'
+						answer = 'PASSED'
 	return answer, ma_pos_id
 
 
