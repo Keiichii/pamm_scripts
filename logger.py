@@ -5,6 +5,8 @@ import logging.handlers
 # Create logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+states = {'DEBUG': 10, 'INFO': 20, 'WARNING': 30, 'ERROR': 40, 'CRITICAL': 50}
+
 
 
 def create_con_logger(level):
