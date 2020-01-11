@@ -209,6 +209,9 @@ def check_pos(acc, pos_id, master=False, closed=False):
 							ma_pos_data = pos
 						else:
 							ia_pos_data = pos
+						if pos.get('time_create') == 0 or (pos.get('time_close') == 0 and closed):
+							add_log('DEBUG', f'    >>> {"time_close" if closed else "time_create"} = 0' )
+							continue
 						result = True
 						break
 				if result:
