@@ -21,7 +21,7 @@ def session_time():
 	add_log('DEBUG', '>>> Checking Forex sessions...')
 	if args.Symbol != 'XRPUSD':
 		periods = fx_sessions.strip().split(';')    # ['1-4,00:00-24:00', '5-5,00:00-21:58', '7-7,22:01-24:00']
-		now = datetime.datetime.now()
+		now = datetime.datetime.utcnow()
 		wday = now.weekday() + 1
 		for p in periods:
 			cur_p = p.strip().split(',')  # ['1-4', '00:00-24:00']
@@ -40,7 +40,7 @@ def session_time():
 			add_log('DEBUG', f'    >>> out of sessions: {fx_sessions}')
 			return False
 	else:
-		add_log('DEBUG', '    >>> symbol is not XRPUSD, FX sessions isnt applicable')
+		add_log('DEBUG', '    >>> symbol is not XRPUSD, FX sessions is not applicable')
 		return True
 
 
@@ -66,7 +66,7 @@ def report(debug, result):
 	#set report level
 	if debug:
 		create_con_logger('DEBUG')		# report ALL
-	elif result == 'FAILED' or result == 'FAILED - BALANCE' or result == 'WARNING':
+	elif result == 'FAILED' or result == 'BALANCE FAILED' or result == 'WARNING':
 		create_con_logger('INFO')		# test FAILED, report main steps and errors
 	else:									
 		create_con_logger('WARNING')	# test PASSED, report only warnings
@@ -298,14 +298,14 @@ def check_balances(accounts):
 
 
 def open_pos_and_check():
-	'return test result: PASSED / FAILED / FAILED - BALANCE / WARNING / TIME WARNING'
+	'return test result: PASSED / FAILED / BALANCE FAILED / WARNING / TIME WARNING'
 	#check balances before open positions
 	add_log('INFO', "***  Start fase A - open position test  ***")
 	answer = ma_pos_id = None
 	result = check_balances([args.MA_login, args.IA_login])
 	if not result:
 		add_log('ERROR', 'Checking accounts balances...FAIL')
-		answer = 'FAILED - BALANCE'
+		answer = 'BALANCE FAILED'
 	elif result == 'TIMEOUT':
 		answer = 'WARNING'
 	else:
@@ -378,7 +378,7 @@ def write_pos(ma_pos_id):
 
 
 def start_test():
-	'return: PASSED / FAILED / FAILED - BALANCE / WARNING / TIME WARNING'
+	'return: PASSED / FAILED / BALANCE FAILED / WARNING / TIME WARNING'
 	# read file with position ID
 	ma_pos_id = read_pos()
 	add_log('DEBUG', f'>>> pos id from file: {ma_pos_id}')
