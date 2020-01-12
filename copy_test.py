@@ -150,7 +150,7 @@ def close_pos_and_check(ma_pos_id):
 	elif ma_pos == 'TIMEOUT' or ia_pos == 'TIMEOUT':
 		return 'WARNING'
 	else:
-		add_log('INFO', "Searching for open position on both accounts...OK")
+		add_log('INFO', "Searching for open position on both accounts...GOOD")
 		#close Master position
 		result = close_pos(ma_pos_id)
 		if not result:
@@ -159,7 +159,7 @@ def close_pos_and_check(ma_pos_id):
 		elif result == 'TIMEOUT':
 			return 'WARNING'
 		else:
-			add_log('INFO', f"Closing Master's position...OK")
+			add_log('INFO', f"Closing Master's position...GOOD")
 			#check that linked pos on investor closed too
 			ma_pos = check_pos(args.MA_login, ma_pos_id, master=True, closed=True)
 			ia_pos = check_pos(args.IA_login, ma_pos_id, closed=True)
@@ -169,14 +169,14 @@ def close_pos_and_check(ma_pos_id):
 			elif ma_pos == 'TIMEOUT' or ia_pos == 'TIMEOUT':
 				return 'WARNING'
 			else:
-				add_log('INFO', "Searching for closed position on both accounts...OK")
+				add_log('INFO', "Searching for closed position on both accounts...GOOD")
 				#compare close time between master and investor positions
 				result = compare_time(closed=True)
 				if not result:
 					add_log('ERROR', 'Comparing CLOSE time between MA and IA positions...FAIL')
 					return 'TIME WARNING'
 				else:
-					add_log('INFO', "Comparing CLOSE time between MA and IA positions...OK")
+					add_log('INFO', "Comparing CLOSE time between MA and IA positions...GOOD")
 	return 'PASSED'
 
 
@@ -280,7 +280,7 @@ def open_pos_and_check():
 	elif result == 'TIMEOUT':
 		answer = 'WARNING'
 	else:
-		add_log('INFO', 'Checking accounts balances...OK')
+		add_log('INFO', 'Checking accounts balances...GOOD')
 		#open MA position
 		ma_pos_id = open_ma_pos()
 		if not ma_pos_id:
@@ -289,7 +289,7 @@ def open_pos_and_check():
 		elif ma_pos_id == 'TIMEOUT':
 			answer = 'WARNING'
 		else:	
-			add_log('INFO', "Opening Master's position...OK")
+			add_log('INFO', "Opening Master's position...GOOD")
 			#get master's position data
 			found_ma = check_pos(args.MA_login, ma_pos_id, master=True)
 			if not found_ma:
@@ -298,7 +298,7 @@ def open_pos_and_check():
 			elif found_ma == 'TIMEOUT':
 				answer = 'WARNING'
 			else:
-				add_log('INFO', "Searching for open position on master...OK")
+				add_log('INFO', "Searching for open position on master...GOOD")
 				#check that position was copied to investor
 				found = check_pos(args.IA_login, ma_pos_id)
 				if not found:
@@ -307,7 +307,7 @@ def open_pos_and_check():
 				elif found == 'TIMEOUT':
 					answer = 'WARNING'
 				else:
-					add_log('INFO', "Searching for open position on investor...OK")
+					add_log('INFO', "Searching for open position on investor...GOOD")
 					#write pos id to file for fase B
 					write_pos(ma_pos_id)
 					#compare open time between master and investor positions
@@ -316,7 +316,7 @@ def open_pos_and_check():
 						add_log('ERROR', 'Comparing OPEN time between MA and IA positions...FAIL')
 						answer = 'TIME WARNING'
 					else:
-						add_log('INFO', "Comparing OPEN time between MA and IA positions...OK")
+						add_log('INFO', "Comparing OPEN time between MA and IA positions...GOOD")
 						answer = 'PASSED'
 	return answer, ma_pos_id
 
