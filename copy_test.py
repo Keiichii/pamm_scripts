@@ -5,7 +5,9 @@ import argparse
 import requests
 import json
 from logger import logger, create_con_logger, states
+import datetime
 
+fx_sessions = '1-4,00:00-24:00;5-5,00:00-21:58;7-7,22:01-24:00'
 
 deal_type = '0'     #0 = buy; 1 = sell
 comment = 'Zabbix test deal'
@@ -13,6 +15,33 @@ base_request = {"jsonrpc":"2.0", "id":"null"}
 ma_pos_data = {}
 ia_pos_data = {}
 error_log = {'msgs': [],}	# [(status, text),], status, additional info
+
+
+def session_time():
+	add_log('DEBUG', '>>> Checking Forex sessions...')
+	if args.Symbol != 'XRPUSD':
+		periods = fx_sessions.strip().split(';')    # ['1-4,00:00-24:00', '5-5,00:00-21:58', '7-7,22:01-24:00']
+		now = datetime.datetime.now()
+		wday = now.weekday() + 1
+		for p in periods:
+			cur_p = p.strip().split(',')  # ['1-4', '00:00-24:00']
+			if str(wday) in cur_p[0]:
+				hours = cur_p[1].strip().split('-')     # ['00:00', '24:00']
+				s = hours[0].strip().split(':')         # ['00', '00']
+				e = hours[1].strip().split(':')         # ['24', '00']
+				start = now.replace(hour=int(s[0]), minute=int(s[1]))
+				if e[0] != '24':
+					end = now.replace(hour=int(e[0]), minute=int(e[1]))
+				else:
+					end = now.replace(hour=0, minute=int(e[1]), day=now.day+1)
+				add_log('DEBUG', f'    >>> current period : {cur_p}')
+				return start <= now <= end
+		else:
+			add_log('DEBUG', f'    >>> out of sessions: {fx_sessions}')
+			return False
+	else:
+		add_log('DEBUG', '    >>> symbol is not XRPUSD, FX sessions isnt applicable')
+		return True
 
 
 def check_runtime():
@@ -385,7 +414,11 @@ if __name__ == "__main__":
 	
 	pos_file = f'c:\\scripts\\copy_test_pos_{args.MA_login}.txt'
 
-	result = start_test()
+	if session_time():
+		result = start_test()
+	else:
+		add_log('WARNING', f'Symbol {args.Symbol} out of FX sessions. Test skipped.')
+		result = 'PASSED'
 
 	report(args.debug, result)
 	logger.debug(f'>>> Time: {time() - start_time}')
