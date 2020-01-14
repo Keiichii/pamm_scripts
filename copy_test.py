@@ -24,8 +24,9 @@ def session_time():
 		now = datetime.datetime.utcnow()
 		wday = now.weekday() + 1
 		for p in periods:
-			cur_p = p.strip().split(',')  # ['1-4', '00:00-24:00']
-			if str(wday) in cur_p[0]:
+			cur_p = p.strip().split(',')  		# ['1-4', '00:00-24:00']
+			cur_p_days = cur_p[0].split('-')	# ['1', '4']
+			if int(cur_p_days[0]) <= wday <= int(cur_p_days[1]):
 				hours = cur_p[1].strip().split('-')     # ['00:00', '24:00']
 				s = hours[0].strip().split(':')         # ['00', '00']
 				e = hours[1].strip().split(':')         # ['24', '00']
@@ -34,6 +35,7 @@ def session_time():
 					end = now.replace(hour=int(e[0]), minute=int(e[1]))
 				else:
 					end = now.replace(hour=0, minute=int(e[1]), day=now.day+1)
+				print(cur_p)
 				add_log('DEBUG', f'    >>> current period : {cur_p}')
 				return start <= now <= end
 		else:
