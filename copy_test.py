@@ -35,7 +35,6 @@ def session_time():
 					end = now.replace(hour=int(e[0]), minute=int(e[1]))
 				else:
 					end = now.replace(hour=0, minute=int(e[1]), day=now.day+1)
-				print(cur_p)
 				add_log('DEBUG', f'    >>> current period : {cur_p}')
 				return start <= now <= end
 		else:
