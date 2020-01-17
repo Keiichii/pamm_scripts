@@ -71,11 +71,7 @@ def report(debug, result):
 		create_con_logger('INFO')		# test FAILED, report main steps and errors
 	else:									
 		create_con_logger('WARNING')	# test PASSED, report only warnings
-	#add general test result
-	if result == 'WARNING' or result == 'TIME WARNING':
-		add_log('WARNING', f'Copy test: {result}')
-	else:
-		add_log('INFO', f'Copy test: {result}')
+	add_log('WARNING', f'Copy test: {result}')
 	#report all messages from queue
 	for msg in error_log['msgs']:
 		m_state, m_text = msg
@@ -104,8 +100,10 @@ def request(method, params):
 		response = requests.post(f'http://{args.Server}/dx', data=json.dumps(data), headers=header, timeout=args.Timeout-2)
 	except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
 		add_log('WARNING', f'    Cannot connect to service: {e}')
+		result = 'CONN_ERROR'
 	except Exception as e:
 		error = f'Connection exception: {e}'
+		result = 'CONN_ERROR'
 	else:
 		data = response.json()
 		result = data.get('result')
@@ -179,6 +177,8 @@ def close_pos_and_check(ma_pos_id):
 		return 'FAILED'
 	elif ma_pos == 'TIMEOUT' or ia_pos == 'TIMEOUT':
 		return 'WARNING'
+	elif ma_pos == 'CONN_ERROR' or ia_pos == 'CONN_ERROR':
+		return 'FAILED'
 	else:
 		add_log('INFO', "Searching for open position on both accounts...GOOD")
 		#close Master position
@@ -198,6 +198,8 @@ def close_pos_and_check(ma_pos_id):
 				return 'FAILED'
 			elif ma_pos == 'TIMEOUT' or ia_pos == 'TIMEOUT':
 				return 'WARNING'
+			elif ma_pos == 'CONN_ERROR' or ia_pos == 'CONN_ERROR':
+				return 'FAILED'
 			else:
 				add_log('INFO', "Searching for closed position on both accounts...GOOD")
 				#compare close time between master and investor positions
@@ -224,7 +226,7 @@ def check_pos(acc, pos_id, master=False, closed=False):
 		params.update({"close_time": True, "limit": 1, "offset": 0})
 	while check_runtime() and x < 3 :
 		data = request(method='acc.pos', params=params)
-		if data == 'TIMEOUT':
+		if data == 'TIMEOUT' or data == 'CONN_ERROR':
 			return data
 		if data:
 			poses = data.get('poss')
@@ -268,7 +270,7 @@ def open_ma_pos():
 	params = {"login": args.MA_login, "symbol": args.Symbol, "type": deal_type, "lot": args.Lot, "comment": comment}
 	data = request(method='pos.open', params=params)
 	add_log('DATA', f'    >>> response data for opening pos: {data}')
-	if data == 'TIMEOUT':
+	if data == 'TIMEOUT' or data == 'CONN_ERROR':
 		return data
 	elif data and data.get('order'):
 		add_log('DEBUG', f'    >>> MA pos #: {data["order"]}')
@@ -283,7 +285,7 @@ def check_balances(accounts):
 		params = {"login": acc, "as_my": True}
 		data = request(method='acc.prop', params=params)
 		add_log('DATA', f'    >>> response data for {acc}: {data}')
-		if data == 'TIMEOUT':
+		if data == 'TIMEOUT' or data == 'CONN_ERROR':
 			return data
 		elif data:
 			margin_free = data.get('acc').get('margin_free')
@@ -309,6 +311,8 @@ def open_pos_and_check():
 		answer = 'BALANCE FAILED'
 	elif result == 'TIMEOUT':
 		answer = 'WARNING'
+	elif result == 'CONN_ERROR':
+		answer = 'FAILED'
 	else:
 		add_log('INFO', 'Checking accounts balances...GOOD')
 		#open MA position
@@ -318,6 +322,8 @@ def open_pos_and_check():
 			answer = 'FAILED'
 		elif ma_pos_id == 'TIMEOUT':
 			answer = 'WARNING'
+		elif result == 'CONN_ERROR':
+			answer = 'FAILED'
 		else:	
 			add_log('INFO', "Opening Master's position...GOOD")
 			#get master's position data
@@ -327,6 +333,8 @@ def open_pos_and_check():
 				answer = 'FAILED'
 			elif found_ma == 'TIMEOUT':
 				answer = 'WARNING'
+			elif result == 'CONN_ERROR':
+				answer = 'FAILED'
 			else:
 				add_log('INFO', "Searching for open position on master...GOOD")
 				#check that position was copied to investor
@@ -336,6 +344,8 @@ def open_pos_and_check():
 					answer = 'FAILED'
 				elif found == 'TIMEOUT':
 					answer = 'WARNING'
+				elif result == 'CONN_ERROR':
+					answer = 'FAILED'
 				else:
 					add_log('INFO', "Searching for open position on investor...GOOD")
 					#write pos id to file for fase B
