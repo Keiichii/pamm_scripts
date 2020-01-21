@@ -225,6 +225,7 @@ def check_pos(acc, pos_id, master=False, closed=False):
 	if closed:
 		params.update({"close_time": True, "limit": 1, "offset": 0})
 	while check_runtime() and x < 3 :
+		sleep(x+1)		#wait between requests
 		data = request(method='acc.pos', params=params)
 		if data == 'TIMEOUT' or data == 'CONN_ERROR':
 			return data
@@ -248,7 +249,6 @@ def check_pos(acc, pos_id, master=False, closed=False):
 						break
 				if result:
 					break
-		sleep(1)		#wait between requests
 		x += 1
 	add_log('DATA', f'    >>> response data for searching pos: {data}')
 	if not poses:
