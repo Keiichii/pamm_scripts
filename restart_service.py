@@ -2,7 +2,6 @@ from win32service import SERVICE_WIN32, SERVICE_STATE_ALL, SERVICE_QUERY_STATUS,
 from win32service import OpenSCManager, OpenService, EnumServicesStatus, QueryServiceConfig
 from win32con import GENERIC_READ
 from itertools import product
-import logging
 import argparse
 from re import match
 import configparser
@@ -11,14 +10,16 @@ from win32serviceutil import StartService, StopService, RestartService
 from subprocess import PIPE, Popen
 from time import sleep
 from re import findall
+from logger import logger, create_file_logger, add_log
 
 
-log_format = '%(asctime)s - %(levelname)s - %(message)s'
-logging.basicConfig(filename="restart_service_log.txt", level=logging.INFO, format=log_format)
+
 services = dict()  # Список задач с параметрами для воркеров
 daxel_ports = dict()
 dapli_ports = dict()
 max_retries = 3
+log_file = 'c:\\scripts\\restart_service_log.txt'
+create_file_logger('INFO', log_file)
 
 service_statuses = {
     5: 'The service continue is pending.',
@@ -68,23 +69,23 @@ def find_services(services_list:list):
                     dapli_port = config.get('DapliConn', 'port')
                 except (configparser.NoSectionError, configparser.NoOptionError) as e:
                     pass
-                    # logging.error(['Loading Dapli port error:', e])
+                    # logger.error(['Loading Dapli port error:', e])
                 if dapli_port:  #For Daxel
                     try:
                         daxel_port = config.get('Web', 'port')
                         daxel_ports[daxel_port] = s_name
                     except (configparser.NoSectionError, configparser.NoOptionError) as e:
-                        logging.error(f'Loading Daxel port error: {e}')
+                        logger.error(f'Loading Daxel port error: {e}')
                 else:       #For Dapli
                     try:
                         dapli_port = config.get('Web', 'port')
                         dapli_ports[dapli_port] = s_name
                     except (configparser.NoSectionError, configparser.NoOptionError) as e:
-                        logging.error(f'Loading Dapli port error: {e}')
-                        logging.error(f'{wd}\\{pattern}.ini')
-                        logging.error(config)
+                        logger.error(f'Loading Dapli port error: {e}')
+                        logger.error(f'{wd}\\{pattern}.ini')
+                        logger.error(config)
             else:
-                logging.error('Config file not found.')
+                logger.error('Config file not found.')
             services[s_name] = {'handle': handle, 
                                 'daxel_port': daxel_port, 
                                 'dapli_port': dapli_port}
@@ -93,7 +94,7 @@ def find_services(services_list:list):
 def service_manager(action: str, service: str):
     '''Actions: start/stop/restart/kill;
     service name '''
-    logging.info(f'service {service} - action: {action}')
+    logger.info(f'service {service} - action: {action}')
     try:
         if action == 'start':
             StartService(service)
@@ -104,7 +105,7 @@ def service_manager(action: str, service: str):
         elif action == 'kill':
             kill(service)
     except Exception as e:
-        logging.error(f'action: {action} exception: {e}')
+        logger.error(f'action: {action} exception: {e}')
 
 
 def run_cmd(service: str, cmd: str) -> tuple:
@@ -112,33 +113,33 @@ def run_cmd(service: str, cmd: str) -> tuple:
     p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE, encoding='cp866')
     stdout, stderr = p.communicate()
     # if stdout:
-    #     logging.info(f'CMD stdOUT: {stdout}')
+    #     logger.info(f'CMD stdOUT: {stdout}')
     # if stderr:
-    #     logging.error(f'CMD stdERR: {stderr}')
+    #     logger.error(f'CMD stdERR: {stderr}')
     return stdout, stderr
 
 
 def kill(service: str):
-    logging.info(f'killing {service}')
+    logger.info(f'killing {service}')
     # GET PID - возвращает по точному совпадению имени службы
     cmd = f'tasklist /FI "services eq {service}" /svc'
-    # logging.info(f'Running cmd: TaskLIST')
+    # logger.info(f'Running cmd: TaskLIST')
     stdout, stderr = run_cmd(service, cmd)
     if stderr:
-        logging.error(f'Finding service in tasklist error: {stderr}')
+        logger.error(f'Finding service in tasklist error: {stderr}')
     if stdout:
         try:
             pid = int(stdout.split()[-2])
         except ValueError as e:
-            logging.error(f'GET service PID exception: {e}')
+            logger.error(f'GET service PID exception: {e}')
         else:
             cmd = f'taskkill /PID {pid} /F'
-            # logging.info(f'Running cmd: TaskKILL')
+            # logger.info(f'Running cmd: TaskKILL')
             stdout, stderr = run_cmd(service, cmd)
             if stderr:
-                logging.error(f'Killing service error: {stderr}')
+                logger.error(f'Killing service error: {stderr}')
             else:
-                logging.info(f'Service killed, result: {stdout}')
+                logger.info(f'Service killed, result: {stdout}')
         
 
 
@@ -147,13 +148,13 @@ def find_Dapli(daxel_port):
     dapli_name = None
     daxel_name = daxel_ports.get(daxel_port)
     if not daxel_name:
-        logging.error(f'Daxel service with port {daxel_port} not found:')
+        logger.error(f'Daxel service with port {daxel_port} not found:')
     else:
         try:
             dapli_port = services[daxel_name]['dapli_port']
             dapli_name = dapli_ports[dapli_port]
         except TypeError as e:
-            logging.error(f'Exception finding Dapli service: {e}')
+            logger.error(f'Exception finding Dapli service: {e}')
     return dapli_name            
 
 
@@ -176,10 +177,10 @@ def check_service(service_name):
         #Check if it stopped
         status = QueryServiceStatus(handle)[1] # ex(48, 4, 5, 0, 0, 0, 0), status [1]
         if status != 1:
-            logging.error(f'Service {service_name} not stopped, trying to restart')
+            logger.error(f'Service {service_name} not stopped, trying to restart')
             service_manager('restart', service_name)
         else:
-            logging.info(f'Service {service_name} stopped, starting it')
+            logger.info(f'Service {service_name} stopped, starting it')
             for _ in range(max_retries):
                 service_manager('start', service_name)
                 sleep(0.5)
@@ -188,9 +189,9 @@ def check_service(service_name):
                 if status == 4:
                     break
             if status == 4:
-                logging.info(f'Service {service_name} started')
+                logger.info(f'Service {service_name} started')
             else:
-                logging.error(f'Service {service_name} NOT started')
+                logger.error(f'Service {service_name} NOT started')
 
 
 def find_port(string):
@@ -207,7 +208,7 @@ def find_port(string):
         elif 'web.page.get' in string:
             port = findall(r',(\d+)]', string)[0]
     except IndexError as e:
-        logging.error(f'Exception parsing args: {e}')
+        logger.error(f'Exception parsing args: {e}')
     return port, service_name
 
 
@@ -218,7 +219,7 @@ if __name__ == "__main__":
     parser.add_argument('Port', help='Daxel port')
     args = parser.parse_args()
     
-    logging.info(f'\n START \n')
+    logger.info(f'\n START \n')
     daxel_port, service_name = find_port(args.Port)
     if daxel_port:
         find_services(services_list=services_list)
@@ -228,4 +229,4 @@ if __name__ == "__main__":
         find_services(services_list=services_list)
         check_service(service_name=service_name)
     else:
-        logging.error(f'Cannot parse port number')
+        logger.error(f'Cannot parse port number')
