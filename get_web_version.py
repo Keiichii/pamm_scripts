@@ -19,8 +19,13 @@ if __name__ == "__main__":
     parser.add_argument('URL', help='URL')
     args = parser.parse_args()
 
-    ver, err = request(args.URL)
+    data, err = request(args.URL)
     if err:
         print(err)
-    if ver:
-        print(ver)
+    if data:
+        try:
+            ver = int(data)
+        except Exception as e:
+            print('error:', e)
+        else:
+            print(ver)
