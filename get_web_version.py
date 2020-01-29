@@ -20,12 +20,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     data, err = request(args.URL)
-    if err:
-        print(err)
     if data:
         try:
             ver = int(data)
         except Exception as e:
-            print('error:', e)
+            print('OLD ver:', e)
         else:
             print(ver)
+    if err:
+        print(err)
