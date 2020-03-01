@@ -14,7 +14,7 @@ parser.add_argument('--PORT', help='MySQL port, default=3306', default=3306)
 parser.add_argument('LOGIN', help='MySQL login')
 parser.add_argument('PASSWORD', help='MySQL password')
 parser.add_argument('DB', help='MySQL DB')
-parser.add_argument('-log_file', help='full path to log file for output')
+parser.add_argument('--log_file', help='full path to log file for output', default='C:\scripts\db_time_diff_log.txt')
 parser.add_argument('--debug', help='Print all debug information', action='store_true')
 args = parser.parse_args()
 
