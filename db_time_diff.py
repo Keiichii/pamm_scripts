@@ -41,9 +41,9 @@ sql_deals = text("""SELECT m.login as 'IA login', m.ma_login as 'MA login', m.po
         FROM deal as m 
         WHERE m.time_pos >= unix_timestamp(now())-3600 and 
         m.ma_pos_id <>0 and m.entry=1 
-        and (m.time_pos-(select m2.time_pos from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1)  >=0 
-            or m.time-(select m2.time from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1) >=0) 
-        order by open_diff_sec desc, close_diff_sec desc limit 10""")
+        and (m.time_pos-(select m2.time_pos from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1)  >=5 
+            or m.time-(select m2.time from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1) >=5) 
+        order by open_diff_sec desc, close_diff_sec desc limit 100""")
 
 # sql_count = text("""SELECT count(*),
 #                 	 max(m.time_pos-(select m2.time_pos from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1)) as max_open_diff_sec,
