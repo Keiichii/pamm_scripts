@@ -23,7 +23,7 @@ def create_con_logger(level):
     logger.addHandler(con_handler)
 
 
-def create_file_logger(level, log_file):
+def create_file_logger(level, log_file, logger=logger):
     'levels: DEBUG, INFO, WARNING, ERROR, CRITICAL'
     # Create handlers
     file_handler = logging.handlers.RotatingFileHandler(log_file, maxBytes=1000000, backupCount=2)

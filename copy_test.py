@@ -37,11 +37,10 @@ def session_time():
 					end = now.replace(hour=0, minute=int(e[1]), day=now.day+1)
 				add_log('DEBUG', f'    >>> current period : {cur_p}')
 				return start <= now <= end
-		else:
-			add_log('DEBUG', f'    >>> out of sessions: {fx_sessions}')
-			return False
+		add_log('DEBUG', f'    >>> out of sessions: {fx_sessions}')
+		return False
 	else:
-		add_log('DEBUG', '    >>> symbol is not XRPUSD, FX sessions is not applicable')
+		add_log('DEBUG', '    >>> symbol is XRPUSD, FX sessions is not applicable')
 		return True
 
 
