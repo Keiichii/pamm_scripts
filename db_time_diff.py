@@ -58,7 +58,7 @@ sql_deals = text("""SELECT m.login as 'IA login', m.ma_login as 'MA login', m.po
 #                 """)
 
 r = conn.execute(sql_deals).fetchall()
-if len(r) >0:
+if len(r) >9:
     logger.warning('WARNING')
     from prettytable import PrettyTable
     t_deals = PrettyTable(['IA login', 'MA login', 'IA pos_id', 'MA pos_id', 'Symbol', 'Action', 'Entry', 'Volume', 'IA open time', 'MA open time', 'open_diff_sec', 'IA close time', 'MA close time', 'close_diff_sec'])
