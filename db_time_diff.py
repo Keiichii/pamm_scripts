@@ -41,9 +41,9 @@ sql_deals = text("""SELECT m.login as 'IA login', m.ma_login as 'MA login', m.po
         FROM deal as m 
         WHERE m.time_pos >= unix_timestamp(now())-3600 and 
         m.ma_pos_id <>0 and m.entry=1 
-        and (m.time_pos-(select m2.time_pos from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1)  >=5 
+        and (m.time_pos-(select m2.time_pos from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1)  >=5
             or m.time-(select m2.time from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1) >=5) 
-        order by open_diff_sec desc, close_diff_sec desc limit 100""")
+        order by open_diff_sec desc, close_diff_sec desc""")
 
 # sql_count = text("""SELECT count(*),
 #                 	 max(m.time_pos-(select m2.time_pos from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1)) as max_open_diff_sec,
@@ -58,7 +58,7 @@ sql_deals = text("""SELECT m.login as 'IA login', m.ma_login as 'MA login', m.po
 #                 """)
 
 r = conn.execute(sql_deals).fetchall()
-if len(r) >9:
+if len(r) >50:
     logger.warning('WARNING')
     from prettytable import PrettyTable
     t_deals = PrettyTable(['IA login', 'MA login', 'IA pos_id', 'MA pos_id', 'Symbol', 'Action', 'Entry', 'Volume', 'IA open time', 'MA open time', 'open_diff_sec', 'IA close time', 'MA close time', 'close_diff_sec'])
@@ -66,10 +66,13 @@ if len(r) >9:
     t = t_deals
     max_open_diff = 0
     max_close_diff = 0
+    i = 0
     for row in r:
-        t.add_row(row)
+        if i < 100:
+            t.add_row(row)
         max_open_diff = max(max_open_diff, row[10])
         max_close_diff = max(max_close_diff, row[13])
+        i += 1
     t_count.add_row([len(r), max_open_diff, max_close_diff])
     logger.info(t_count)
     logger2.warning(t)
