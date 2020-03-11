@@ -202,12 +202,12 @@ def close_pos_and_check(ma_pos_id):
 			else:
 				add_log('INFO', "Searching for closed position on both accounts...GOOD")
 				#compare close time between master and investor positions
-				result = compare_time(closed=True)
-				if not result:
-					add_log('ERROR', 'Comparing CLOSE time between MA and IA positions...FAIL')
-					return 'TIME WARNING'
-				else:
-					add_log('INFO', "Comparing CLOSE time between MA and IA positions...GOOD")
+				# result = compare_time(closed=True)
+				# if not result:
+				# 	add_log('ERROR', 'Comparing CLOSE time between MA and IA positions...FAIL')
+				# 	return 'TIME WARNING'
+				# else:
+				# 	add_log('INFO', "Comparing CLOSE time between MA and IA positions...GOOD")
 	return 'PASSED'
 
 
@@ -349,14 +349,14 @@ def open_pos_and_check():
 					add_log('INFO', "Searching for open position on investor...GOOD")
 					#write pos id to file for fase B
 					write_pos(ma_pos_id)
+					answer = 'PASSED'
 					#compare open time between master and investor positions
-					result = compare_time()
-					if not result:
-						add_log('ERROR', 'Comparing OPEN time between MA and IA positions...FAIL')
-						answer = 'TIME WARNING'
-					else:
-						add_log('INFO', "Comparing OPEN time between MA and IA positions...GOOD")
-						answer = 'PASSED'
+					# result = compare_time()
+					# if not result:
+					# 	add_log('ERROR', 'Comparing OPEN time between MA and IA positions...FAIL')
+					# 	answer = 'TIME WARNING'
+					# else:
+					# 	add_log('INFO', "Comparing OPEN time between MA and IA positions...GOOD")
 	return answer, ma_pos_id
 
 
