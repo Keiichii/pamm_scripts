@@ -292,7 +292,6 @@ def open_ma_pos():
 def check_balances(accounts):
 	'check balances of MA and IA and return True if both ok, and TIMEOUT if timeout'
 	add_log('INFO', 'Checking accounts balances...')
-	tt = time()
 	result = []
 	with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
 		future_to_acc = {executor.submit(request, method='acc.prop', 
@@ -314,7 +313,6 @@ def check_balances(accounts):
 					result.append(True)
 			else:
 				result.append(False)
-	print('check balances time >>>', time()-tt)
 	return all(result)
 
 
