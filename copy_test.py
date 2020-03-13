@@ -6,6 +6,8 @@ import requests
 import json
 from logger import logger, create_con_logger, states
 import datetime
+import concurrent.futures
+
 
 fx_sessions = '1-4,00:00-24:00;5-5,00:00-21:58;7-7,22:01-24:00'
 
@@ -169,45 +171,56 @@ def close_pos_and_check(ma_pos_id):
 	'return test result: PASSED / FAILED / WARNING / TIME WARNING'
 	#at first check that position exist on both acounts
 	add_log('INFO', "***  Start fase B - close position test  ***")
-	ma_pos = check_pos(args.MA_login, ma_pos_id, master=True)
-	ia_pos = check_pos(args.IA_login, ma_pos_id)
-	if not all((ma_pos, ia_pos)):
-		add_log('ERROR', f"Searching for open position on {'master' if not ma_pos else 'investor'}...FAIL")
-		return 'FAILED'
-	elif ma_pos == 'TIMEOUT' or ia_pos == 'TIMEOUT':
-		return 'WARNING'
-	elif ma_pos == 'CONN_ERROR' or ia_pos == 'CONN_ERROR':
-		return 'FAILED'
-	else:
-		add_log('INFO', "Searching for open position on both accounts...GOOD")
-		#close Master position
-		result = close_pos(ma_pos_id)
-		if not result:
-			add_log('ERROR', f"Closing Master's position...FAIL")
+	with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+		# ma_pos = check_pos(args.MA_login, ma_pos_id, master=True)
+		# ia_pos = check_pos(args.IA_login, ma_pos_id)
+		ma_pos = executor.submit(check_pos, args.MA_login, ma_pos_id, master=True)
+		ia_pos = executor.submit(check_pos, args.IA_login, ma_pos_id)
+		concurrent.futures.wait((ma_pos, ia_pos))
+		ma_pos = ma_pos.result()
+		ia_pos = ia_pos.result()
+		if not all((ma_pos, ia_pos)):
+			add_log('ERROR', f"Searching for open position on {'master' if not ma_pos else 'investor'}...FAIL")
 			return 'FAILED'
-		elif result == 'TIMEOUT':
+		elif ma_pos == 'TIMEOUT' or ia_pos == 'TIMEOUT':
 			return 'WARNING'
+		elif ma_pos == 'CONN_ERROR' or ia_pos == 'CONN_ERROR':
+			return 'FAILED'
 		else:
-			add_log('INFO', f"Closing Master's position...GOOD")
-			#check that linked pos on investor closed too
-			ma_pos = check_pos(args.MA_login, ma_pos_id, master=True, closed=True)
-			ia_pos = check_pos(args.IA_login, ma_pos_id, closed=True)
-			if not all((ma_pos, ia_pos)):
-				add_log('ERROR', f"Searching for closed position on {'master' if not ma_pos else 'investor'}...FAIL")
+			add_log('INFO', "Searching for open position on both accounts...GOOD")
+			#close Master position
+			result = close_pos(ma_pos_id)
+			if not result:
+				add_log('ERROR', f"Closing Master's position...FAIL")
 				return 'FAILED'
-			elif ma_pos == 'TIMEOUT' or ia_pos == 'TIMEOUT':
+			elif result == 'TIMEOUT':
 				return 'WARNING'
-			elif ma_pos == 'CONN_ERROR' or ia_pos == 'CONN_ERROR':
-				return 'FAILED'
 			else:
-				add_log('INFO', "Searching for closed position on both accounts...GOOD")
-				#compare close time between master and investor positions
-				# result = compare_time(closed=True)
-				# if not result:
-				# 	add_log('ERROR', 'Comparing CLOSE time between MA and IA positions...FAIL')
-				# 	return 'TIME WARNING'
-				# else:
-				# 	add_log('INFO', "Comparing CLOSE time between MA and IA positions...GOOD")
+				add_log('INFO', f"Closing Master's position...GOOD")
+				#check that linked pos on investor closed too
+				# ma_pos = check_pos(args.MA_login, ma_pos_id, master=True, closed=True)
+				# ia_pos = check_pos(args.IA_login, ma_pos_id, closed=True)
+				ma_pos = executor.submit(check_pos, args.MA_login, ma_pos_id, master=True, closed=True)
+				ia_pos = executor.submit(check_pos, args.IA_login, ma_pos_id, closed=True)
+				concurrent.futures.wait((ma_pos, ia_pos))
+				ma_pos = ma_pos.result()
+				ia_pos = ia_pos.result()
+				if not all((ma_pos, ia_pos)):
+					add_log('ERROR', f"Searching for closed position on {'master' if not ma_pos else 'investor'}...FAIL")
+					return 'FAILED'
+				elif ma_pos == 'TIMEOUT' or ia_pos == 'TIMEOUT':
+					return 'WARNING'
+				elif ma_pos == 'CONN_ERROR' or ia_pos == 'CONN_ERROR':
+					return 'FAILED'
+				else:
+					add_log('INFO', "Searching for closed position on both accounts...GOOD")
+					#compare close time between master and investor positions
+					# result = compare_time(closed=True)
+					# if not result:
+					# 	add_log('ERROR', 'Comparing CLOSE time between MA and IA positions...FAIL')
+					# 	return 'TIME WARNING'
+					# else:
+					# 	add_log('INFO', "Comparing CLOSE time between MA and IA positions...GOOD")
 	return 'PASSED'
 
 
@@ -279,23 +292,29 @@ def open_ma_pos():
 def check_balances(accounts):
 	'check balances of MA and IA and return True if both ok, and TIMEOUT if timeout'
 	add_log('INFO', 'Checking accounts balances...')
+	tt = time()
 	result = []
-	for acc in accounts:
-		params = {"login": acc, "as_my": True}
-		data = request(method='acc.prop', params=params)
-		add_log('DATA', f'    >>> response data for {acc}: {data}')
-		if data == 'TIMEOUT' or data == 'CONN_ERROR':
-			return data
-		elif data:
-			margin_free = data.get('acc').get('margin_free')
-			add_log('DEBUG', f'    >>> acc {acc} has free margin = {margin_free}')
-			if margin_free < 10:
-				add_log('ERROR', f'    acc {acc} has not enough free margin = {margin_free} - ADD BALANCE!')
-				result.append(False)
+	with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+		future_to_acc = {executor.submit(request, method='acc.prop', 
+							params={"login": acc, "as_my": True}): acc for acc in accounts}
+		for future in concurrent.futures.as_completed(future_to_acc):
+			acc = future_to_acc[future]
+			data = future.result()
+			# data = request(method='acc.prop', params=params)
+			add_log('DATA', f'    >>> response data for {acc}: {data}')
+			if data == 'TIMEOUT' or data == 'CONN_ERROR':
+				return data
+			elif data:
+				margin_free = data.get('acc').get('margin_free')
+				add_log('DEBUG', f'    >>> acc {acc} has free margin = {margin_free}')
+				if margin_free < 10:
+					add_log('ERROR', f'    acc {acc} has not enough free margin = {margin_free} - ADD BALANCE!')
+					result.append(False)
+				else:
+					result.append(True)
 			else:
-				result.append(True)
-		else:
-			result.append(False)
+				result.append(False)
+	print('check balances time >>>', time()-tt)
 	return all(result)
 
 
@@ -325,38 +344,44 @@ def open_pos_and_check():
 			answer = 'FAILED'
 		else:	
 			add_log('INFO', "Opening Master's position...GOOD")
-			#get master's position data
-			found_ma = check_pos(args.MA_login, ma_pos_id, master=True)
-			if not found_ma:
-				add_log('ERROR', "Searching for open position on master...FAIL")
-				answer = 'FAILED'
-			elif found_ma == 'TIMEOUT':
-				answer = 'WARNING'
-			elif result == 'CONN_ERROR':
-				answer = 'FAILED'
-			else:
-				add_log('INFO', "Searching for open position on master...GOOD")
-				#check that position was copied to investor
-				found = check_pos(args.IA_login, ma_pos_id)
-				if not found:
-					add_log('ERROR', "Searching for open position on investor...FAIL")
+			with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+				#get master's position data
+				# found_ma = check_pos(args.MA_login, ma_pos_id, master=True)
+				found_ma = executor.submit(check_pos, args.MA_login, ma_pos_id, master=True)
+				found = executor.submit(check_pos, args.IA_login, ma_pos_id)
+				concurrent.futures.wait((found_ma, found))
+				found_ma = found_ma.result()
+				found = found.result()
+				if not found_ma:
+					add_log('ERROR', "Searching for open position on master...FAIL")
 					answer = 'FAILED'
-				elif found == 'TIMEOUT':
+				elif found_ma == 'TIMEOUT':
 					answer = 'WARNING'
 				elif result == 'CONN_ERROR':
 					answer = 'FAILED'
 				else:
-					add_log('INFO', "Searching for open position on investor...GOOD")
-					#write pos id to file for fase B
-					write_pos(ma_pos_id)
-					answer = 'PASSED'
-					#compare open time between master and investor positions
-					# result = compare_time()
-					# if not result:
-					# 	add_log('ERROR', 'Comparing OPEN time between MA and IA positions...FAIL')
-					# 	answer = 'TIME WARNING'
-					# else:
-					# 	add_log('INFO', "Comparing OPEN time between MA and IA positions...GOOD")
+					add_log('INFO', "Searching for open position on master...GOOD")
+					#check that position was copied to investor
+					# found = check_pos(args.IA_login, ma_pos_id)
+					if not found:
+						add_log('ERROR', "Searching for open position on investor...FAIL")
+						answer = 'FAILED'
+					elif found == 'TIMEOUT':
+						answer = 'WARNING'
+					elif result == 'CONN_ERROR':
+						answer = 'FAILED'
+					else:
+						add_log('INFO', "Searching for open position on investor...GOOD")
+						#write pos id to file for fase B
+						write_pos(ma_pos_id)
+						answer = 'PASSED'
+						#compare open time between master and investor positions
+						# result = compare_time()
+						# if not result:
+						# 	add_log('ERROR', 'Comparing OPEN time between MA and IA positions...FAIL')
+						# 	answer = 'TIME WARNING'
+						# else:
+						# 	add_log('INFO', "Comparing OPEN time between MA and IA positions...GOOD")
 	return answer, ma_pos_id
 
 
