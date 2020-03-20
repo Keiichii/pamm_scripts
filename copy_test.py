@@ -9,7 +9,7 @@ import datetime
 import concurrent.futures
 
 
-fx_sessions = '1-4,00:00-24:00;5-5,00:00-21:58;7-7,22:01-24:00'
+fx_sessions = '1-4,00:00-24:00;5-5,00:00-20:58;7-7,21:01-24:00'
 
 deal_type = '0'     #0 = buy; 1 = sell
 comment = 'Zabbix test deal'
