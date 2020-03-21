@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, MetaData, Table, text
+from sqlalchemy import create_engine, text
 from logger import logger, create_con_logger, create_file_logger, states
 import argparse
 from time import time
@@ -29,8 +29,6 @@ create_con_logger(log_level)
 
 uri = f'mysql+mysqldb://{args.LOGIN}:{args.PASSWORD}@{args.IP}:{args.PORT}/{args.DB}'
 engine = create_engine(uri, echo=args.debug) 
-meta = MetaData(bind=engine)
-t_deal = Table('deal', meta, autoload=True)
 conn = engine.connect()
 
 sql_deals = text("""SELECT m.login as 'IA login', m.ma_login as 'MA login', m.pos_id, m.ma_pos_id, m.symbol, m.action, m.entry, m.volumext, from_unixtime(m.time_pos) as 'IA open time', 
@@ -45,37 +43,26 @@ sql_deals = text("""SELECT m.login as 'IA login', m.ma_login as 'MA login', m.po
             or m.time-(select m2.time from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1) >=5) 
         order by open_diff_sec desc, close_diff_sec desc""")
 
-# sql_count = text("""SELECT count(*),
-#                 	 max(m.time_pos-(select m2.time_pos from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1)) as max_open_diff_sec,
-# 	                max(m.time-(select m2.time from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1)) as max_close_diff_sec
-#                     FROM deal as m
-#                     WHERE #m.time_pos >= unix_timestamp(now())-3600	# for last 1 hour
-#                         #and 
-#                         m.ma_pos_id <>0
-#                         and m.entry=1
-#                         and (m.time_pos-(select m2.time_pos from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1)  >=5 
-#                             or m.time-(select m2.time from deal as m2 where m.ma_pos_id=m2.pos_id and m2.entry=1 limit 1) >=5)
-#                 """)
 
 r = conn.execute(sql_deals).fetchall()
-if len(r) >50:
+count = len(r)
+if count >50:
     logger.warning('WARNING')
     from prettytable import PrettyTable
     t_deals = PrettyTable(['IA login', 'MA login', 'IA pos_id', 'MA pos_id', 'Symbol', 'Action', 'Entry', 'Volume', 'IA open time', 'MA open time', 'open_diff_sec', 'IA close time', 'MA close time', 'close_diff_sec'])
     t_count = PrettyTable(['Number of poses', 'MAX open time diff', 'MAX close time diff'])
-    t = t_deals
     max_open_diff = 0
     max_close_diff = 0
     i = 0
     for row in r:
         if i < 100:
-            t.add_row(row)
+            t_deals.add_row(row)
         max_open_diff = max(max_open_diff, row[10])
         max_close_diff = max(max_close_diff, row[13])
         i += 1
-    t_count.add_row([len(r), max_open_diff, max_close_diff])
+    t_count.add_row([count, max_open_diff, max_close_diff])
     logger.info(t_count)
-    logger2.warning(t)
+    logger2.warning(t_deals)
 else:
     logger.info('PASSED')
 
