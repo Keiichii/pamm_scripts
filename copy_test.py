@@ -36,7 +36,11 @@ def session_time():
 				if e[0] != '24':
 					end = now.replace(hour=int(e[0]), minute=int(e[1]))
 				else:
-					end = now.replace(hour=0, minute=int(e[1]), day=now.day+1)
+					try:
+						end = now.replace(hour=0, minute=int(e[1]), day=now.day+1)
+					except ValueError as ex:
+						if str(ex) == 'day is out of range for month':
+							end = now.replace(hour=0, minute=int(e[1]), day=1, month=now.month+1)
 				add_log('DEBUG', f'    >>> current period : {cur_p}')
 				return start <= now <= end
 		add_log('DEBUG', f'    >>> out of sessions: {fx_sessions}')
