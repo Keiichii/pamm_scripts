@@ -32,7 +32,8 @@ conn = engine.connect()
 
 sql_deals = text("""SELECT login, id, deal, symbol, from_unixtime(time), comment, ma_pos_id, ma_login FROM deal 
                     where login not in (SELECT ma_login FROM link group by ma_login)
-                        and ma_pos_id=0  
+                        and ma_pos_id=0
+                        and action in (0,1)  
                         and comment regexp "@[0-9]"
                         and time >= unix_timestamp(now())-3600
                     order by deal.id desc;""")

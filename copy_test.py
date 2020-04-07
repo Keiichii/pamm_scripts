@@ -399,7 +399,12 @@ def read_pos():
 		add_log('WARNING', f'Read pos id from file Exception: {e}')
 		return False
 	else:
-		return int(pos_id) if pos_id else False
+		if pos_id:
+			try:
+				pos_id = int(pos_id)
+			except:
+				pos_id = False
+		return pos_id
 
 
 def write_pos(ma_pos_id):
