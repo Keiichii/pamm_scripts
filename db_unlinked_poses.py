@@ -14,8 +14,10 @@ parser.add_argument('--PORT', help='MySQL port, default=3306', default=3306)
 parser.add_argument('LOGIN', help='MySQL login')
 parser.add_argument('PASSWORD', help='MySQL password')
 parser.add_argument('DB', help='MySQL DB')
+parser.add_argument('ex_acc', help='Exclude list of accounts', type=str, nargs='*')
 parser.add_argument('--log_file', help='full path to log file for output', default='C:\scripts\db_unlinked_poses_log.txt')
 parser.add_argument('--debug', help='Print all debug information', action='store_true')
+
 args = parser.parse_args()
 
 if args.debug:
@@ -30,8 +32,9 @@ uri = f'mysql+mysqldb://{args.LOGIN}:{args.PASSWORD}@{args.IP}:{args.PORT}/{args
 engine = create_engine(uri, echo=args.debug) 
 conn = engine.connect()
 
-sql_deals = text("""SELECT login, id, deal, symbol, from_unixtime(time), comment, ma_pos_id, ma_login FROM deal 
+sql_deals = text(f"""SELECT login, id, deal, symbol, from_unixtime(time), comment, ma_pos_id, ma_login FROM deal 
                     where login not in (SELECT ma_login FROM link group by ma_login)
+                        and login not in ({','.join(args.ex_acc)})
                         and ma_pos_id=0
                         and action in (0,1)  
                         and comment regexp "@[0-9]"
