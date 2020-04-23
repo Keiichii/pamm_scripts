@@ -24,7 +24,7 @@ def send(result, msg, trap):
     else:
         if result == 'FAILED' or result == 'BALANCE FAILED' or result == 'WARNING':
             for m in msg:
-                if 'REQUEST' == m[0] or 'DATA' == m[0]:
+                if 'REQUEST' == m[0] or 'DATA' == m[0] or 'DEBUG' == m[0]:
                     continue
                 if report:
                     report = f'{report}\n{m[1]}'
