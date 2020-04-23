@@ -79,7 +79,7 @@ def report(debug, result):
 		create_con_logger('WARNING')	# test PASSED, report only warnings
 	add_log('WARNING', f'Copy test: {result}')
 	#report all messages from queue
-	error = zabbix_sender.send(result, error_log['msgs'])
+	error = zabbix_sender.send(result, error_log['msgs'], 'copy_test_trap')
 	if error:
 		add_log('WARNING', error)
 	for msg in error_log['msgs']:

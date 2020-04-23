@@ -5,7 +5,7 @@ from os.path import exists
 conf_pathes = ['c:\Program Files\Zabbix Agent\zabbix_agentd.conf', 'c:\zabbix\zabbix_agentd.conf', 'zabbix_agentd.conf']
 
 
-def send(result, msg):
+def send(result, msg, trap):
     report = ''
     for path in conf_pathes:
         if exists(path):
@@ -37,7 +37,7 @@ def send(result, msg):
                         report = f'{report}\n{m[1]}'
                     else:
                         report = m[1]
-    packet = [ZabbixMetric(hostname, 'test_trap', report)]
+    packet = [ZabbixMetric(hostname, trap, report)]
     result = ZabbixSender(use_config=path).send(packet)
     if result.failed != 0:
         error = f'Zabbix-sender: Error sending {msg}'
