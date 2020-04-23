@@ -7,6 +7,7 @@ import json
 from logger import logger, create_con_logger, states
 import datetime
 import concurrent.futures
+import zabbix_sender
 
 
 fx_sessions = '1-4,00:00-24:00;5-5,00:00-20:58;7-7,21:01-24:00'
@@ -78,6 +79,9 @@ def report(debug, result):
 		create_con_logger('WARNING')	# test PASSED, report only warnings
 	add_log('WARNING', f'Copy test: {result}')
 	#report all messages from queue
+	error = zabbix_sender.send(result, error_log['msgs'])
+	if error:
+		add_log('WARNING', error)
 	for msg in error_log['msgs']:
 		m_state, m_text = msg
 		if (m_state == 'REQUEST' and args.request) or (m_state == 'DATA' and args.data):
@@ -91,8 +95,8 @@ def request(method, params):
 	'''return result from response[result]
 	
 	or return TIMEOUT if timeout'''
-	if not check_runtime():
-		return 'TIMEOUT'
+	# if not check_runtime():
+	# 	return 'TIMEOUT'
 	result = None
 	header = {'ManagerPass': args.ManagerPass}
 	data = base_request
@@ -240,8 +244,11 @@ def check_pos(acc, pos_id, master=False, closed=False):
 	params = {"login": acc}
 	if closed:
 		params.update({"close_time": True, "limit": 1, "offset": 0})
-	while check_runtime() and x < 3 :
+	# while check_runtime() and x < 3 :
+	while x < 5 :
 		sleep((x+1)/2)		#wait between requests
+		if x > 0:
+			add_log('WARNING', f"    >>> check pose for {'Master' if master else 'Investor'} attempt #{x}")
 		data = request(method='acc.pos', params=params)
 		if data == 'TIMEOUT' or data == 'CONN_ERROR':
 			return data
@@ -310,7 +317,7 @@ def check_balances(accounts):
 			elif data:
 				margin_free = data.get('acc').get('margin_free')
 				add_log('DEBUG', f'    >>> acc {acc} has free margin = {margin_free}')
-				if margin_free < 10:
+				if margin_free < 30:
 					add_log('ERROR', f'    acc {acc} has not enough free margin = {margin_free} - ADD BALANCE!')
 					result.append(False)
 				else:

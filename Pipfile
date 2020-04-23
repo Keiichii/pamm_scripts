@@ -10,6 +10,7 @@ ipython = "*"
 [packages]
 pywin32 = "*"
 requests = "*"
+py-zabbix = "*"
 
 [requires]
 python_version = "3.7"
