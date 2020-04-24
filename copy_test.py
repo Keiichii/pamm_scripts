@@ -79,7 +79,7 @@ def report(debug, result):
 		create_con_logger('WARNING')	# test PASSED, report only warnings
 	add_log('WARNING', f'Copy test: {result}')
 	#report all messages from queue
-	error = zabbix_sender.send(result, error_log['msgs'], 'copy_test_trap')
+	error = zabbix_sender.send(result, error_log['msgs'], args.trapper_key)
 	if error:
 		add_log('WARNING', error)
 	for msg in error_log['msgs']:
@@ -245,10 +245,10 @@ def check_pos(acc, pos_id, master=False, closed=False):
 	if closed:
 		params.update({"close_time": True, "limit": 1, "offset": 0})
 	# while check_runtime() and x < 3 :
-	while x < 5 :
+	while x < 6 :
 		sleep((x+1)/2)		#wait between requests
 		if x > 0:
-			add_log('WARNING', f"    >>> check pose for {'Master' if master else 'Investor'} attempt #{x}")
+			add_log('WARNING', f"    >>> check pose for {'Master' if master else 'Investor'} attempt #{x+1}")
 		data = request(method='acc.pos', params=params)
 		if data == 'TIMEOUT' or data == 'CONN_ERROR':
 			return data
@@ -459,6 +459,7 @@ if __name__ == "__main__":
 	parser.add_argument('--debug', help='Print all debug information', action='store_true')
 	parser.add_argument('--request', help='Print all requests', action='store_true')
 	parser.add_argument('--data', help='Print all data responses', action='store_true')
+	parser.add_argument('--trapper_key', help='use different trapper key', default='copy_test_trap')
 	args = parser.parse_args()
 	
 	pos_file = f'c:\\scripts\\copy_test_pos_{args.MA_login}.txt'

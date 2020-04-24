@@ -2,7 +2,7 @@ from pyzabbix import ZabbixMetric, ZabbixSender
 from os.path import exists
 
 
-conf_pathes = ['c:\Program Files\Zabbix Agent\zabbix_agentd.conf', 'c:\zabbix\zabbix_agentd.conf', 'zabbix_agentd.conf']
+conf_pathes = ['c:\Program Files\Zabbix Agent\zabbix_agentd.conf', 'c:\zabbix\zabbix_agentd.conf', 'd:\Zabbix Agent\zabbix_agentd.conf', 'zabbix_agentd.conf']
 
 
 def send(result, msg, trap):
@@ -18,7 +18,7 @@ def send(result, msg, trap):
                         break
             break
     else:
-        return 'Error'
+        return 'Error: not found zabbix conf-path'
     if not isinstance(msg, list):
         report = msg
     else:
