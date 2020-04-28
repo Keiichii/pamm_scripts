@@ -55,6 +55,8 @@ def request_test():
 			if not r2.get('la_login'):
 				msg = 'la_login in result in User is empty'
 				error_info(msg=msg, url=url, mt_login=mt_login, result='WARNING')
+			else:
+				print('JSON test: PASSED')
 
 
 if __name__ == "__main__":
